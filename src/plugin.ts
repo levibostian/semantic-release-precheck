@@ -1,38 +1,72 @@
 import { FailContext, VerifyReleaseContext, VerifyConditionsContext, AnalyzeCommitsContext, GenerateNotesContext, PrepareContext, PublishContext, AddChannelContext, SuccessContext } from "semantic-release"
 import { PluginConfig } from "./type/pluginConfig";
+import * as npm from "./npm";
+import { SemanticReleasePlugin } from "./type/semanticReleasePlugin";
 
-export async function verifyConditions(pluginConfig: PluginConfig, context: VerifyConditionsContext & {options: {dryRun: boolean}}) {
-  (await import(pluginConfig.name)).verifyConditions(pluginConfig.options, context)  
+let deploymentPlugin: SemanticReleasePlugin
+
+export async function verifyConditions(pluginConfig: PluginConfig, context: VerifyConditionsContext & {options: {dryRun: boolean}}) {  
+  let alreadyInstalledPlugin = npm.getDeploymentPlugin(pluginConfig.name)
+  if (!alreadyInstalledPlugin) {
+    await npm.install(pluginConfig.name)
+    alreadyInstalledPlugin = npm.getDeploymentPlugin(pluginConfig.name)
+  }
+  if (!alreadyInstalledPlugin) {
+    throw new Error(`Unable to load plugin, ${pluginConfig.name}. I checked if it was installed already and it wasn't. I tried to install it with npm, and install was not successful.`)
+  }
+
+  deploymentPlugin = alreadyInstalledPlugin
+
+  if (deploymentPlugin.verifyConditions) {
+    await deploymentPlugin.verifyConditions(pluginConfig.options || {}, context)
+  }
 }
 
 export async function analyzeCommits(pluginConfig: PluginConfig, context: AnalyzeCommitsContext) {  
-  (await import(pluginConfig.name)).verifyConditions(pluginConfig.options, context) 
+  if (deploymentPlugin.analyzeCommits) {  
+    await deploymentPlugin.analyzeCommits(pluginConfig.options || {}, context)
+  }
 }
 
 export async function verifyRelease(pluginConfig: PluginConfig, context: VerifyReleaseContext) {
-  (await import(pluginConfig.name)).verifyConditions(pluginConfig.options, context) 
+  if (deploymentPlugin.verifyRelease) {
+    await deploymentPlugin.verifyRelease(pluginConfig.options || {}, context)
+  }
 }
 
 export async function generateNotes(pluginConfig: PluginConfig, context: VerifyReleaseContext) {
-  (await import(pluginConfig.name)).generateNotes(pluginConfig.options, context) 
+  if (deploymentPlugin.generateNotes) {
+    await deploymentPlugin.generateNotes(pluginConfig.options || {}, context)
+  }
 }
 
 export async function prepare(pluginConfig: PluginConfig, context: PrepareContext) {
-  (await import(pluginConfig.name)).prepare(pluginConfig.options, context) 
+  if (deploymentPlugin.prepare) {
+    await deploymentPlugin.prepare(pluginConfig.options || {}, context)
+  }
 }
 
 export async function publish(pluginConfig: PluginConfig, context: PublishContext) {
-  (await import(pluginConfig.name)).publish(pluginConfig.options, context) 
+  if (deploymentPlugin.publish) {
+    await deploymentPlugin.publish(pluginConfig.options || {}, context)
+  }
 }
 
 export async function addChannel(pluginConfig: PluginConfig, context: AddChannelContext) {
-  (await import(pluginConfig.name)).addChannel(pluginConfig.options, context) 
+  if (deploymentPlugin.addChannel) {
+    await deploymentPlugin.addChannel(pluginConfig.options || {}, context)
+  }  
 }
 
 export async function success(pluginConfig: PluginConfig, context: SuccessContext) {
-  (await import(pluginConfig.name)).success(pluginConfig.options, context) 
+  if (deploymentPlugin.success) {
+    await deploymentPlugin.success(pluginConfig.options || {}, context)
+  }  
 }
 
 export async function fail(pluginConfig: PluginConfig, context: FailContext) {
-  (await import(pluginConfig.name)).fail(pluginConfig.options, context) 
+  if (deploymentPlugin.fail) {
+    await deploymentPlugin.fail(pluginConfig.options || {}, context)
+  }
 }
+
