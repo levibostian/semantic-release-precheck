@@ -1,16 +1,10 @@
 import { SemanticReleasePlugin } from "./type/semanticReleasePlugin";
 
-export function getDeploymentPlugin(name: string): SemanticReleasePlugin | undefined {
+export async function getDeploymentPlugin(name: string): Promise<SemanticReleasePlugin | undefined> {
   try {
-    return require(name)
+    let plugin = await import(name)
+    return plugin
   } catch (e) {
     return undefined
   }
-}
-
-export async function install(name: string) {
-  const { exec } = require("child_process")
-  const { promisify } = require("util")
-  const execAsync = promisify(exec)
-  await execAsync(`npm install --no-save ${name}`)
 }

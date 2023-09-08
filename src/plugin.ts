@@ -5,14 +5,13 @@ import { SemanticReleasePlugin } from "./type/semanticReleasePlugin";
 
 let deploymentPlugin: SemanticReleasePlugin
 
-export async function verifyConditions(pluginConfig: PluginConfig, context: VerifyConditionsContext & {options: {dryRun: boolean}}) {  
-  let alreadyInstalledPlugin = npm.getDeploymentPlugin(pluginConfig.name)
+export async function verifyConditions(pluginConfig: PluginConfig, context: VerifyConditionsContext) {  
+  // This is the first function that semantic-release calls on a plugin. 
+  // Check if the deployment plugin is already installed. If not, we must throw an error because we cannot install it for them. 
+  // I have tried to do that, but it seems that node loads all modules at startup so it cannot find a module after it's installed during runtime. 
+  let alreadyInstalledPlugin = await npm.getDeploymentPlugin(pluginConfig.name)
   if (!alreadyInstalledPlugin) {
-    await npm.install(pluginConfig.name)
-    alreadyInstalledPlugin = npm.getDeploymentPlugin(pluginConfig.name)
-  }
-  if (!alreadyInstalledPlugin) {
-    throw new Error(`Unable to load plugin, ${pluginConfig.name}. I checked if it was installed already and it wasn't. I tried to install it with npm, and install was not successful.`)
+    throw new Error(`Deployment plugin, ${pluginConfig.name}, doesn't seem to be installed. Install it with \`npm install ${pluginConfig.name}\` and then try running your deployment again.`)
   }
 
   deploymentPlugin = alreadyInstalledPlugin
@@ -69,4 +68,3 @@ export async function fail(pluginConfig: PluginConfig, context: FailContext) {
     await deploymentPlugin.fail(pluginConfig.options || {}, context)
   }
 }
-
