@@ -59,7 +59,7 @@ It's important that whatever plugin that you use for deployment gets moved out o
 
 It's invalid because `@semantic-release/npm` exists *both* inside of `semantic-release-precheck` and outside of it. 
 
-*Note:* you can specify a version of the plugin you would like to have installed. Example: `@semantic-release/npm@8.2.1`. By default, `@latest` is used. 
+*Note:* You must have the deployment plugin installed with npm before running your deployment. 
 
 There is an `options` object inside of `deploy-plugin`. This object will be provided to the `deploy-plugin` during execution. This means that any option that the `deploy-module` supports can go into this object. 
 
