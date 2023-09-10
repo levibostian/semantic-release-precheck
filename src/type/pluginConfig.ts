@@ -1,4 +1,7 @@
 export interface PluginConfig {
-  name: string
-  options?: Object
+  precheck_command: string
+  deploy_plugin: {
+    name: string
+    config?: Object
+  }  
 }

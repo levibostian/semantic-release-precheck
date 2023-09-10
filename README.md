@@ -24,10 +24,10 @@ Let's use an example of deploying a node module to npmjs:
         "@semantic-release/commit-analyzer",
         "@semantic-release/release-notes-generator",
         ["semantic-release-precheck", {
-            "precheck-command": "npm view name-of-project@${nextRelease.version}",
-            "deploy-plugin": {
+            "precheck_command": "npm view name-of-project@${nextRelease.version}",
+            "deploy_plugin": {
                 "name": "@semantic-release/npm",
-                "options": {
+                "config": {
                     "pkgRoot": "dist/"
                 }
             }             
@@ -38,18 +38,18 @@ Let's use an example of deploying a node module to npmjs:
 
 Let's break this configuration down. 
 
-* `precheck-command` is a command that executes to check if the version has already been deployed. If command fails, this indicates that the version has previously been deployed and a new deployment should be skipped. 
+* `precheck_command` is a command that executes to check if the version has already been deployed. If command fails, this indicates that the version has previously been deployed and a new deployment should be skipped. 
 
-* `deploy-plugin` is used to define an existing sematic-release plugin that should be used to perform the deployment, if a deployment is to occur. This allows you to conveniently re-use existing plugins in the semantic-release community. 
+* `deploy_plugin` is used to define an existing sematic-release plugin that should be used to perform the deployment, if a deployment is to occur. This allows you to conveniently re-use existing plugins in the semantic-release community. 
 
-It's important that whatever plugin that you use for deployment gets moved out of the `plugins` array and instead goes inside of `semantic-release-precheck` options. As an example, **this is an invalid configuration:**
+It's important that whatever plugin that you use for deployment gets moved out of the `plugins` array and instead goes inside of `semantic-release-precheck` object. As an example, **this is an invalid configuration:**
 
 ```json
 {
     "plugins": [
         "@semantic-release/npm",
         ["semantic-release-precheck", {
-            "deploy-plugin": {
+            "deploy_plugin": {
                 "name": "@semantic-release/npm"
             }
         }]
@@ -61,7 +61,7 @@ It's invalid because `@semantic-release/npm` exists *both* inside of `semantic-r
 
 *Note:* You must have the deployment plugin installed with npm before running your deployment. 
 
-There is an `options` object inside of `deploy-plugin`. This object will be provided to the `deploy-plugin` during execution. This means that any option that the `deploy-module` supports can go into this object. 
+There is an `config` object inside of `deploy_plugin`. This object will be provided to the `deploy_plugin` during execution. This means that any option that the `deploy_plugin` supports can go into this object. 
 
 # Why is this plugin needed? 
 
@@ -100,6 +100,6 @@ $ npm run test
 This project's vision is led by fundamental goals that this plugin is trying to accomplish. With all future development, we try to follow these goals.
 
 1. The plugin allows you to re-use existing semantic-release plugins for deployments. This plugin is not trying to replace existing plugins, but add extra functionality to each of them. By leveraging existing plugins, we reduce the amount of work required to improve our deployments. 
-2. Existing semantic-release configurations should be able to adopt this plugin. This is the main reason for adding `deploy-options` as an option to the plugin, so this plugin can be compatible with deployment modules and their options. 
+2. Existing semantic-release configurations should be able to adopt this plugin. This is the main reason for adding `deploy_plugin.config` as an option to the plugin, so this plugin can be compatible with deployment modules and their options. 
 3. This plugin's purpose is to avoid a failed deployment that could occur during deployment when pushing a version. There may be other use cases you can think of for a check to run before a deployment is done, but that may not meet the purpose of this plugin. You may instead be looking for another plugin such as [`exec`](https://github.com/semantic-release/exec). 
 
