@@ -8,6 +8,8 @@ const { defaultsESM: tsjPreset } = require('ts-jest/presets')
 /** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
   resetMocks: true,
+  clearMocks: true,
+  restoreMocks: true,
   collectCoverage: true,
   // [...]
   transform: {
