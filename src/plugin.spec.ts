@@ -1,4 +1,4 @@
-import { publish, verifyConditions, resetPlugin } from "./plugin"
+import { publish, verifyConditions, generateNotes, resetPlugin, prepare, addChannel, fail, analyzeCommits, verifyRelease, success } from "./plugin"
 import * as npm from "./npm"
 import { FailContext, VerifyConditionsContext, VerifyReleaseContext } from 'semantic-release';
 import { SemanticReleasePlugin } from "./type/semanticReleasePlugin";
@@ -65,18 +65,27 @@ const getMockPlugin = (): SemanticReleasePlugin => {
   }
 }
 
+const randomPluginConfig: PluginConfig = { 
+  precheck_command: 'false', 
+  deploy_plugin: { 
+    name: "@semantic-release/npm", 
+    config: { 
+      foo: "bar", 
+      nested: { 
+        isNested: true 
+      } 
+    } 
+  } 
+}
+let mockPlugin: SemanticReleasePlugin
+
 beforeEach(() => {
   resetPlugin()
+
+  mockPlugin = getMockPlugin()
 })
 
 describe('handle deployment plugin installed or not installed', () => {
-
-  let randomPluginConfig = { precheck_command: 'false', deploy_plugin: { name: "@semantic-release/npm" } }
-  let mockPlugin: SemanticReleasePlugin
-
-  beforeEach(() => {
-    mockPlugin = getMockPlugin()
-  })
 
   it('should throw an error if the plugin is not installed', async() => {
     jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation(() => { return Promise.resolve(undefined) })
@@ -96,12 +105,8 @@ describe('handle deployment plugin installed or not installed', () => {
 })
 
 describe('publish', () => {  
-  let randomPluginConfig: PluginConfig = { precheck_command: 'false', deploy_plugin: { name: "@semantic-release/npm" } }
-  let mockPlugin: SemanticReleasePlugin
-
+  
   beforeEach(async() => {
-    mockPlugin = getMockPlugin()
-
     // This will load the mock plugin into the deploymentPlugin variable so that we can use it in the tests.
     jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => { 
       return Promise.resolve(mockPlugin)
@@ -143,5 +148,126 @@ describe('publish', () => {
   })
 })
 
+describe('skip future plugin functions if deployment is skipped', () => {
+  it('should skip functions after publish', async() => {
+    jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => { 
+      return Promise.resolve(mockPlugin)
+    })
+    let config = randomPluginConfig
+    config.precheck_command = 'echo "will fail" && false'
+
+    await verifyConditions(config, context)
+    await analyzeCommits(config, context)
+    await verifyRelease(config, context)
+    await generateNotes(config, context)
+    await prepare(config, context)
+    await publish(config, context)
+    await addChannel(config, context)
+    await success(config, context)
+    await fail(config, context)
+
+    expect(mockPlugin.verifyConditions).toBeCalledWith(config.deploy_plugin.config, context)
+    expect(mockPlugin.analyzeCommits).toBeCalledWith(config.deploy_plugin.config, context)
+    expect(mockPlugin.verifyRelease).toBeCalledWith(config.deploy_plugin.config, context)
+    expect(mockPlugin.generateNotes).toBeCalledWith(config.deploy_plugin.config, context)
+    expect(mockPlugin.prepare).toBeCalledWith(config.deploy_plugin.config, context)
+
+    expect(mockPlugin.publish).not.toBeCalled()
+    expect(mockPlugin.addChannel).not.toBeCalled()
+    expect(mockPlugin.success).not.toBeCalled()
+    expect(mockPlugin.fail).not.toBeCalled()
+  })
+
+  it('should not skip functions after publish if precheck command succeeds', async() => {
+    jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => { 
+      return Promise.resolve(mockPlugin)
+    })
+    let config = randomPluginConfig
+    config.precheck_command = 'echo "will succeed"'
+
+    await verifyConditions(config, context)
+    await analyzeCommits(config, context)
+    await verifyRelease(config, context)
+    await generateNotes(config, context)
+    await prepare(config, context)
+    await publish(config, context)
+    await addChannel(config, context)
+    await success(config, context)
+    await fail(config, context)
+
+    expect(mockPlugin.verifyConditions).toBeCalledWith(config.deploy_plugin.config, context)
+    expect(mockPlugin.analyzeCommits).toBeCalledWith(config.deploy_plugin.config, context)
+    expect(mockPlugin.verifyRelease).toBeCalledWith(config.deploy_plugin.config, context)
+    expect(mockPlugin.generateNotes).toBeCalledWith(config.deploy_plugin.config, context)
+    expect(mockPlugin.prepare).toBeCalledWith(config.deploy_plugin.config, context)
+    expect(mockPlugin.publish).toBeCalledWith(config.deploy_plugin.config, context)
+    expect(mockPlugin.addChannel).toBeCalledWith(config.deploy_plugin.config, context)
+    expect(mockPlugin.success).toBeCalledWith(config.deploy_plugin.config, context)
+    expect(mockPlugin.fail).toBeCalledWith(config.deploy_plugin.config, context)
+  })
+})
+
+describe('behavior of running deployment plugin', () => {
+  beforeEach(async() => { 
+    jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => {
+      return Promise.resolve(mockPlugin)
+    })
+  })
+
+  it('should provide empty object if no config is provided', async() => {
+    let config = randomPluginConfig
+    config.deploy_plugin.config = undefined
+
+    await verifyConditions(config, context)
+    await analyzeCommits(config, context)
+    await verifyRelease(config, context)
+    await generateNotes(config, context)
+    await prepare(config, context)
+    await publish(config, context)
+    await addChannel(config, context)
+    await success(config, context)
+    await fail(config, context)
+
+    expect(mockPlugin.verifyConditions).toBeCalledWith({}, context)    
+    expect(mockPlugin.analyzeCommits).toBeCalledWith({}, context)
+    expect(mockPlugin.verifyRelease).toBeCalledWith({}, context)
+    expect(mockPlugin.generateNotes).toBeCalledWith({}, context)
+    expect(mockPlugin.prepare).toBeCalledWith({}, context)
+    expect(mockPlugin.publish).toBeCalledWith({}, context)
+    expect(mockPlugin.addChannel).toBeCalledWith({}, context)
+    expect(mockPlugin.success).toBeCalledWith({}, context)
+    expect(mockPlugin.fail).toBeCalledWith({}, context)   
+  })
+
+  it('should provide config if config is provided', async() => {
+    let config = randomPluginConfig
+    let givenDeploymentConfig = { npmPublish: false, foo: "bar", nested: { isNested: 1 } }
+    config.deploy_plugin.config = givenDeploymentConfig
+
+    await verifyConditions(config, context)
+    
+
+    expect(mockPlugin.verifyConditions).toBeCalledWith(givenDeploymentConfig, context)         
+  })
+
+  it('should not run plugin function if plugin function is not defined', async() => {
+    let emptyMockPlugin = jest.fn() 
+    jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => {
+      return Promise.resolve(emptyMockPlugin as SemanticReleasePlugin)
+    })
+
+    await verifyConditions(randomPluginConfig, context)
+    await analyzeCommits(randomPluginConfig, context)
+    await verifyRelease(randomPluginConfig, context)
+    await generateNotes(randomPluginConfig, context)
+    await prepare(randomPluginConfig, context)
+    await publish(randomPluginConfig, context)
+    await addChannel(randomPluginConfig, context)
+    await success(randomPluginConfig, context)
+    await fail(randomPluginConfig, context)
+
+    expect(emptyMockPlugin).not.toHaveBeenCalled()
+  })
+})
 
 
