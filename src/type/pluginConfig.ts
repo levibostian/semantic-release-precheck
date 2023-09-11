@@ -1,5 +1,5 @@
 export interface PluginConfig {
-  precheck_command: string
+  shoud_skip_deployment_cmd: string
   deploy_plugin: {
     name: string
     config?: Object

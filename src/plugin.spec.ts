@@ -66,7 +66,7 @@ const getMockPlugin = (): SemanticReleasePlugin => {
 }
 
 const randomPluginConfig: PluginConfig = { 
-  precheck_command: 'false', 
+  shoud_skip_deployment_cmd: 'false', 
   deploy_plugin: { 
     name: "@semantic-release/npm", 
     config: { 
@@ -120,25 +120,25 @@ describe('publish', () => {
     })
 
     let config = randomPluginConfig
-    config.precheck_command = 'echo ${nextRelease.version}'
+    config.shoud_skip_deployment_cmd = 'echo ${nextRelease.version}'
 
     await publish(config, context)
 
     expect(exec.runCommand).toBeCalledWith('echo 1.0.0', context)
   })
 
-  it('should skip deployment if precheck command fails', async() => {
+  it('should skip deployment if precheck command succeeds', async() => {
     let config = randomPluginConfig
-    config.precheck_command = 'echo "will fail" && false'
+    config.shoud_skip_deployment_cmd = 'echo "Looks like 1.0.0 already has been published to npm"'
 
     await publish(config, context)
 
     expect(mockPlugin.publish).not.toBeCalled()
   })
 
-  it('should execute deployment if precheck command succeeds', async() => {
+  it('should execute deployment if precheck command fails', async() => {
     let config = randomPluginConfig
-    config.precheck_command = 'echo "will succeed"'
+    config.shoud_skip_deployment_cmd = 'echo "will fail" && false'
     let givenDeploymentConfig = { npmPublish: false, foo: "bar", nested: { isNested: 1 } }
     config.deploy_plugin.config = givenDeploymentConfig
 
@@ -154,7 +154,7 @@ describe('skip future plugin functions if deployment is skipped', () => {
       return Promise.resolve(mockPlugin)
     })
     let config = randomPluginConfig
-    config.precheck_command = 'echo "will fail" && false'
+    config.shoud_skip_deployment_cmd = 'echo "Looks like 1.0.0 already has been published to npm"'
 
     await verifyConditions(config, context)
     await analyzeCommits(config, context)
@@ -178,12 +178,12 @@ describe('skip future plugin functions if deployment is skipped', () => {
     expect(mockPlugin.fail).not.toBeCalled()
   })
 
-  it('should not skip functions after publish if precheck command succeeds', async() => {
+  it('should not skip functions after publish if deployment is not skipped', async() => {
     jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => { 
       return Promise.resolve(mockPlugin)
     })
     let config = randomPluginConfig
-    config.precheck_command = 'echo "will succeed"'
+    config.shoud_skip_deployment_cmd = 'echo "will fail" && false'
 
     await verifyConditions(config, context)
     await analyzeCommits(config, context)

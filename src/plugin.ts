@@ -55,15 +55,17 @@ export async function prepare(pluginConfig: PluginConfig, context: PrepareContex
 
 export async function publish(pluginConfig: PluginConfig, context: PublishContext) {
   // Using same logic as https://github.com/semantic-release/exec/blob/master/lib/exec.js to do string formatting so the syntax is similar for both plugins. 
-  const preCheckCommand = stringFormat(pluginConfig.precheck_command)(context)
+  const preCheckCommand = stringFormat(pluginConfig.shoud_skip_deployment_cmd)(context)
 
   context.logger.log(`Running precheck command before publishing: ${preCheckCommand}`)
-  context.logger.log(`If command returns a non-0 exit code or the command throws an exception because there is a problem with the command, the deployment will be skipped.`)  
+  context.logger.log(`If command returns true (0 exit code), the deployment will be skipped.`)  
+
+  skipDeployment = true
   
   try {
     await runCommand(preCheckCommand, context)
   } catch (e) {
-    skipDeployment = true
+    skipDeployment = false
   }
 
   if (skipDeployment) {

@@ -13,7 +13,7 @@
             "preset": "conventionalcommits"
         }],
         ["semantic-release-precheck", {
-            "precheck_command": "npm view semantic-release-precheck@${nextRelease.version}",
+            "shoud_skip_deployment_cmd": "npm view semantic-release-precheck@${nextRelease.version}",
             "deploy_plugin": {
                 "name": "@semantic-release/npm"
             } 
