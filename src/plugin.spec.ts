@@ -78,7 +78,7 @@ const getMockPlugin = (): SemanticReleasePlugin  => {
 }
 
 const randomPluginConfig: PluginConfig = { 
-  shoud_skip_deployment_cmd: 'false', 
+  should_skip_deployment_cmd: 'false', 
   deploy_plugin: { 
     name: "@semantic-release/npm", 
     config: { 
@@ -133,7 +133,7 @@ describe('publish', () => {
     })
 
     let config = randomPluginConfig
-    config.shoud_skip_deployment_cmd = 'echo ${nextRelease.version}'
+    config.should_skip_deployment_cmd = 'echo ${nextRelease.version}'
 
     await publish(config, context)
 
@@ -142,7 +142,7 @@ describe('publish', () => {
 
   it('should skip deployment if precheck command succeeds', async() => {
     let config = randomPluginConfig
-    config.shoud_skip_deployment_cmd = 'echo "Looks like 1.0.0 already has been published to npm"'
+    config.should_skip_deployment_cmd = 'echo "Looks like 1.0.0 already has been published to npm"'
 
     await publish(config, context)
 
@@ -151,7 +151,7 @@ describe('publish', () => {
 
   it('should execute deployment if precheck command fails', async() => {
     let config = randomPluginConfig
-    config.shoud_skip_deployment_cmd = 'echo "will fail" && false'
+    config.should_skip_deployment_cmd = 'echo "will fail" && false'
     let givenDeploymentConfig = { npmPublish: false, foo: "bar", nested: { isNested: 1 } }
     config.deploy_plugin.config = givenDeploymentConfig
 
@@ -167,7 +167,7 @@ describe('skip future plugin functions if deployment is skipped', () => {
       return Promise.resolve(mockPlugin)
     })
     let config = randomPluginConfig
-    config.shoud_skip_deployment_cmd = 'echo "Looks like 1.0.0 already has been published to npm"'
+    config.should_skip_deployment_cmd = 'echo "Looks like 1.0.0 already has been published to npm"'
 
     await runFullPluginLifecycle(config, context)
 
@@ -182,7 +182,7 @@ describe('skip future plugin functions if deployment is skipped', () => {
       return Promise.resolve(mockPlugin)
     })
     let config = randomPluginConfig
-    config.shoud_skip_deployment_cmd = 'echo "will fail" && false'
+    config.should_skip_deployment_cmd = 'echo "will fail" && false'
 
     await runFullPluginLifecycle(config, context)    
 
@@ -285,7 +285,7 @@ describe('logging', () => {
   it('should generate expected logs when deployment is not skipped', async() => {
     // create a copy of randomPluginConfig
     let config = randomPluginConfig
-    config.shoud_skip_deployment_cmd = 'echo "run a deploy!" && false'
+    config.should_skip_deployment_cmd = 'echo "run a deploy!" && false'
 
     // mock plugin functions to log something useful to test logs. 
     mockPlugin.publish = jest.fn().mockImplementation((config, context) => {
@@ -347,7 +347,7 @@ describe('logging', () => {
   it('should generate expected logs when deployment is skipped', async() => {
     // create a copy of randomPluginConfig
     let config = randomPluginConfig
-    config.shoud_skip_deployment_cmd = 'echo "skip a deploy" && true'    
+    config.should_skip_deployment_cmd = 'echo "skip a deploy" && true'    
    
     await runFullPluginLifecycle(config, context)    
   
