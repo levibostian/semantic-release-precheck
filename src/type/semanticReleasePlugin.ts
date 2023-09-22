@@ -10,4 +10,6 @@ export interface SemanticReleasePlugin {
   addChannel?: (pluginConfig: Object, context: AddChannelContext) => Promise<void>
   success?: (pluginConfig: Object, context: SuccessContext) => Promise<void>
   fail?: (pluginConfig: Object, context: FailContext) => Promise<void>
+
+  
 }
