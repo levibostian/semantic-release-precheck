@@ -1,4 +1,4 @@
-import { publish, verifyConditions, generateNotes, resetPlugin, prepare, addChannel, fail, analyzeCommits, verifyRelease, success } from "./plugin"
+import { publish, verifyConditions, generateNotes, resetPlugin, prepare, addChannel, fail, analyzeCommits, verifyRelease, success, prepareLoggerForDeploymentPlugin } from "./plugin"
 import * as npm from "./npm"
 import { AnalyzeCommitsContext, BaseContext, FailContext, PublishContext, VerifyConditionsContext, VerifyReleaseContext } from 'semantic-release';
 import { SemanticReleasePlugin } from "./type/semanticReleasePlugin";
@@ -250,6 +250,16 @@ describe('behavior of running deployment plugin', () => {
     await runFullPluginLifecycle(randomPluginConfig, context)       
 
     expect(emptyMockPlugin).not.toHaveBeenCalled()
+  })
+})
+
+describe('prepareLoggerForDeploymentPlugin', () => {
+  it('should return context (and not crash) if semantic-release modifies the logger they use', () => {
+    let context = { logger: {} } as BaseContext // provide a logger that is not a Signale instance. In case semantic-release ever changes the lib they use for logging, we want to be compatible.
+
+    const actualContext = prepareLoggerForDeploymentPlugin(context, randomPluginConfig)
+
+    expect(actualContext).toEqual(context)
   })
 })
 
