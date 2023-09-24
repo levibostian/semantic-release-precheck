@@ -38,7 +38,7 @@ Let's use an example of deploying a node module to npmjs:
 
 Let's break this configuration down. 
 
-* `should_skip_deployment_cmd` is a command that executes to check if the version has already been deployed. If command fails, this indicates that the version has previously been deployed and a new deployment should be skipped. 
+* `should_skip_deployment_cmd` is a command that executes to check if the version has already been deployed. If command returns true (0 exit code), this indicates that the version has previously been deployed and a new deployment should be skipped. 
 
 * `deploy_plugin` is used to define an existing sematic-release plugin that should be used to perform the deployment, if a deployment is to occur. This allows you to conveniently re-use existing plugins in the semantic-release community. 
 
