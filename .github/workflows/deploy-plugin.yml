@@ -28,6 +28,7 @@ jobs:
         extra_plugins: |
           conventional-changelog-conventionalcommits
           @semantic-release/github
+          semantic-release-recovery
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         NPM_TOKEN: ${{ secrets.NPM_PUSH_TOKEN }}

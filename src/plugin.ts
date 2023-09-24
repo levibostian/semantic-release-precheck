@@ -24,14 +24,22 @@ export function resetPlugin() { // useful for running tests
 // This function modifies the context object with the modified logger so we can send the modified context to the deploy plugin.
 export function prepareLoggerForDeploymentPlugin<CONTEXT>(context: BaseContext, pluginConfig: PluginConfig): CONTEXT {
   let logger = context.logger 
+
+  // the logic for how to modify the logger is from: https://github.com/semantic-release/semantic-release/blob/e759493e074650748fc3bbef9e640db413b52d56/lib/plugins/normalize.js#L40
   if (logger.scope && logger.scope instanceof Function) { // check if the logger has a scope function before calling it to try to be compatible if semantic-release ever changes the lib they use for logging 
-    logger = logger.scope((context.logger as any).scopeName, pluginConfig.deploy_plugin.name)
+    // we need to get the existing scopes, convert it to an array, add the name of the plugin, then use that to modify the existing logger. 
+    let existingScopes: string[] | string = (logger as any).scopeName
+    if (typeof existingScopes === "string") {
+      existingScopes = [existingScopes]
+    }
+    existingScopes.push(pluginConfig.deploy_plugin.name)
+
+    logger = logger.scope(...existingScopes)
   }
 
-  return {
-    ...context,
-    logger
-  } as CONTEXT
+  context.logger = logger 
+
+  return context as CONTEXT
 }
 
 // -- Plugin lifecycle functions 

@@ -18,12 +18,11 @@
         "@types/signale": "^1.4.4",
         "jest": "^29.6.4",
         "semantic-release": "^21.1.1",
-        "semantic-release-recovery": "^1.0.0-beta.1",
+        "signale": "^1.4.0",
         "ts-jest": "^29.1.1",
         "typescript": "^5.2.2"
     },
     "dependencies": {
-        "lodash.template": "^4.5.0",
-        "signale": "^1.4.0"
+        "lodash.template": "^4.5.0"
     }
 }
