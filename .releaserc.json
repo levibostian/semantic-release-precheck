@@ -15,7 +15,12 @@
         ["semantic-release-precheck", {
             "should_skip_deployment_cmd": "npm view semantic-release-precheck@${nextRelease.version}",
             "deploy_plugin": {
-                "name": "@semantic-release/npm"
+                "name": "@semantic-release/npm",
+                "config": {
+                    "npmPublish": true,
+                    "pkgRoot": ".",
+                    "tarballDir": "false"
+                }
             } 
         }],
         "@semantic-release/github",

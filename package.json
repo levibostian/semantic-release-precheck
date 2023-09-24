@@ -6,7 +6,7 @@
     "scripts": {
         "test": "NODE_OPTIONS=--experimental-vm-modules FORCE_COLOR=0 npx jest",
         "test:updatesnapshots": "npm run test -- --updateSnapshot",
-        "compile": "npx tsc --outDir dist"
+        "compile": "npx tsc --sourceMap true --outDir dist"
     },
     "author": "Levi Bostian <levi@curiosityio.com>",
     "license": "MIT",
