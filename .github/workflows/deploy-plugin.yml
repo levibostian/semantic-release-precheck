@@ -25,6 +25,7 @@ jobs:
     - name: Deploy git tag via semantic-release
       uses: cycjimmy/semantic-release-action@v4
       with:
+        semantic_version: latest # since our plugin has a devDependency on semantic-release, using latest keyword here will upgrade node_modules/ copy to the latest version for deployment 
         extra_plugins: |
           conventional-changelog-conventionalcommits
           @semantic-release/github
