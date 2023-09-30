@@ -37,9 +37,12 @@ export function prepareLoggerForDeploymentPlugin<CONTEXT>(context: BaseContext, 
     logger = logger.scope(...existingScopes)
   }
 
-  context.logger = logger 
+  // We want to return a new object so we don't modify the original context object. Our own plugin still uses the original context object.
+  // return a new one that is only passed to the deploy plugin.
+  let modifiedContext = Object.assign({}, context)
+  modifiedContext.logger = logger
 
-  return context as CONTEXT
+  return modifiedContext as CONTEXT
 }
 
 // -- Plugin lifecycle functions 
