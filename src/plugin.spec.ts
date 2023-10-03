@@ -102,6 +102,30 @@ beforeEach(() => {
   mockPlugin = getMockPlugin()
 })
 
+describe('verify plugin config', () => {
+  it('should throw error if plugin config is not valid', async() => {
+    let config = defaultPluginConfig()
+    config.should_skip_deployment_cmd = undefined
+    config.is_it_deployed = undefined
+
+    await expect(verifyConditions(config, defaultContext()))
+    .rejects
+    .toThrow();
+  })
+  it('should not throw error if plugin config is valid', async() => {
+    let config = defaultPluginConfig()
+    // must also make sure that plugin is installed or verifyConditions to not throw error 
+    jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => { 
+      return Promise.resolve(mockPlugin)
+    })
+
+    await expect(verifyConditions(config, defaultContext()))
+    .resolves
+    .not
+    .toThrow();
+  })
+})
+
 describe('handle deployment plugin installed or not installed', () => {
 
   it('should throw an error if the plugin is not installed', async() => {
