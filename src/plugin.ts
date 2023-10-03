@@ -1,5 +1,5 @@
 import { FailContext, VerifyReleaseContext, VerifyConditionsContext, AnalyzeCommitsContext, GenerateNotesContext, PrepareContext, PublishContext, AddChannelContext, SuccessContext, BaseContext } from "semantic-release"
-import { PluginConfig } from "./type/pluginConfig";
+import { PluginConfig, isValid as isValidPluginConfig } from "./type/pluginConfig";
 import * as npm from "./npm";
 import { SemanticReleasePlugin } from "./type/semanticReleasePlugin";
 import { runCommand } from "./exec";
@@ -49,6 +49,11 @@ export function prepareLoggerForDeploymentPlugin<CONTEXT>(context: BaseContext, 
 // -- Plugin lifecycle functions 
 
 export async function verifyConditions(pluginConfig: PluginConfig, context: VerifyConditionsContext) {
+  const errorMessage = isValidPluginConfig(pluginConfig)
+  if (errorMessage) {
+    throw new Error(errorMessage)
+  }
+
   // This is the first function that semantic-release calls on a plugin. 
   // Check if the deployment plugin is already installed. If not, we must throw an error because we cannot install it for them. 
   // I have tried to do that, but it seems that node loads all modules at startup so it cannot find a module after it's installed during runtime. 
