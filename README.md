@@ -24,7 +24,10 @@ Let's use an example of deploying a node module to npmjs:
         "@semantic-release/commit-analyzer",
         "@semantic-release/release-notes-generator",
         ["semantic-release-precheck", {
-            "should_skip_deployment_cmd": "npm view name-of-project@${nextRelease.version}",
+            "is_it_deployed": {
+                "package_manager": "npm",
+                "package_name": "name-of-package"
+            },
             "deploy_plugin": {
                 "name": "@semantic-release/npm",
                 "config": {
@@ -38,7 +41,23 @@ Let's use an example of deploying a node module to npmjs:
 
 Let's break this configuration down. 
 
-* `should_skip_deployment_cmd` is a command that executes to check if the version has already been deployed. If command returns true (0 exit code), this indicates that the version has previously been deployed and a new deployment should be skipped. 
+* `is_it_deployed` uses the `package_manager` and `package_name` to determine if the version has already been deployed. This internally uses the [is-it-deployed](https://github.com/levibostian/is-it-deployed/) module. Check if [your package manager](https://github.com/levibostian/is-it-deployed/?tab=readme-ov-file#supported-package-managers) is currently supported by the module and see examples for what values to use for it. 
+
+If `is_it_deployed` will not work for you and your deployment process, you can use `should_skip_deployment_cmd` instead.
+
+* `should_skip_deployment_cmd` (not needed if using `is_it_deployed`) is a command that executes to check if the version has already been deployed. If command returns true (0 exit code), this indicates that the version has previously been deployed and a new deployment should be skipped. 
+
+Example: 
+```json
+{    
+    "plugins": [
+        ["semantic-release-precheck", {
+            "should_skip_deployment_cmd": "npm view name-of-project@${nextRelease.version}",
+            ...
+        }]
+    ]
+}
+```
 
 * `deploy_plugin` is used to define an existing sematic-release plugin that should be used to perform the deployment, if a deployment is to occur. This allows you to conveniently re-use existing plugins in the semantic-release community. 
 

@@ -9,45 +9,47 @@ import { Writable as WritableStream } from "stream";
 
 type SemanticReleaseContext = PublishContext & FailContext 
 
-const context: SemanticReleaseContext = {
-  env: {},
-  envCi: {
-    isCi: true,
-    commit: '1234567890',
-    branch: 'main',
-  },
-  logger: { // by default, provide an object that is not a Signale instance. Because the plugin modifies the logger instance for real Signale instances, it makes test assertions much harder. 
-    log: () => {},
-    error: () => {},
-  } as Signale, 
-  branch: {
-    name: 'main'
-  },
-  branches: [{name: 'main'}],
-  stderr: process.stderr,
-  stdout: process.stdout,
-  nextRelease: {
-    channel: 'main',
-    name: 'main',
-    type: 'major',
-    version: '1.0.0',
-    gitTag: 'v1.0.0',
-    gitHead: '1234567890',
-    notes: 'Release notes'
-  },
-  commits: [],
-  releases: [],
-  lastRelease: {
-    version: '',
-    gitTag: '',
-    channels: [],
-    gitHead: '',
-    name: '',
-  },
-  errors: {
-    errors: [],
-    message: '',
-    name: ''
+function defaultContext(): SemanticReleaseContext {
+  return {
+    env: {},
+    envCi: {
+      isCi: true,
+      commit: '1234567890',
+      branch: 'main',
+    },
+    logger: { // by default, provide an object that is not a Signale instance. Because the plugin modifies the logger instance for real Signale instances, it makes test assertions much harder. 
+      log: () => {},
+      error: () => {},
+    } as Signale, 
+    branch: {
+      name: 'main'
+    },
+    branches: [{name: 'main'}],
+    stderr: process.stderr,
+    stdout: process.stdout,
+    nextRelease: {
+      channel: 'main',
+      name: 'main',
+      type: 'major',
+      version: '1.0.0',
+      gitTag: 'v1.0.0',
+      gitHead: '1234567890',
+      notes: 'Release notes'
+    },
+    commits: [],
+    releases: [],
+    lastRelease: {
+      version: '',
+      gitTag: '',
+      channels: [],
+      gitHead: '',
+      name: '',
+    },
+    errors: {
+      errors: [],
+      message: '',
+      name: ''
+    }
   }
 }
 
@@ -77,17 +79,19 @@ const getMockPlugin = (): SemanticReleasePlugin  => {
   }
 }
 
-const randomPluginConfig: PluginConfig = { 
-  should_skip_deployment_cmd: 'false', 
-  deploy_plugin: { 
-    name: "@semantic-release/npm", 
-    config: { 
-      foo: "bar", 
-      nested: { 
-        isNested: true 
+function defaultPluginConfig(): PluginConfig {
+  return { 
+    should_skip_deployment_cmd: 'false', 
+    deploy_plugin: { 
+      name: "@semantic-release/npm", 
+      config: { 
+        foo: "bar", 
+        nested: { 
+          isNested: true 
+        } 
       } 
     } 
-  } 
+  }
 }
 
 let mockPlugin: SemanticReleasePlugin
@@ -103,7 +107,7 @@ describe('handle deployment plugin installed or not installed', () => {
   it('should throw an error if the plugin is not installed', async() => {
     jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation(() => { return Promise.resolve(undefined) })
 
-    await expect(verifyConditions(randomPluginConfig, context)).rejects.toThrowError()
+    await expect(verifyConditions(defaultPluginConfig(), defaultContext())).rejects.toThrowError()
   })
 
   it('should run the plugin if its already installed', async() => {
@@ -111,20 +115,64 @@ describe('handle deployment plugin installed or not installed', () => {
       return Promise.resolve(mockPlugin)
     })
 
-    await verifyConditions(randomPluginConfig, context)
+    await verifyConditions(defaultPluginConfig(), defaultContext())
 
     expect(mockPlugin.verifyConditions).toBeCalled()
   })
 })
 
-describe('publish', () => {  
+describe('publish - is_it_deployed', () => {  
   
   beforeEach(async() => {
     // This will load the mock plugin into the deploymentPlugin variable so that we can use it in the tests.
     jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => { 
       return Promise.resolve(mockPlugin)
     })
-    await verifyConditions(randomPluginConfig, context)
+    jest.spyOn(exec, 'runCommand').mockImplementation((command, context) => {
+      return Promise.resolve(undefined)
+    })
+    await verifyConditions(defaultPluginConfig(), defaultContext())
+  })
+
+  it('should skip deployment if version already exists', async() => {
+    let config = defaultPluginConfig()
+    config.is_it_deployed = { 
+      package_name: 'react', 
+      package_manager: 'npm' 
+    }
+    let modifiedContext = defaultContext()
+    modifiedContext.nextRelease.version = '18.0.0'
+
+    await publish(config, modifiedContext)
+
+    expect(mockPlugin.publish).not.toBeCalled()
+    expect(exec.runCommand).not.toBeCalled() // make sure that a command didn't try to run to test deployment
+  })
+
+  it('should execute deployment if version does not exist', async() => {
+    let config = defaultPluginConfig()
+    config.is_it_deployed = { 
+      package_name: 'react', 
+      package_manager: 'npm' 
+    }    
+    let modifiedContext = defaultContext()
+    modifiedContext.nextRelease.version = '99.99.99'
+
+    await publish(config, modifiedContext)
+
+    expect(mockPlugin.publish).toHaveBeenCalled()
+    expect(exec.runCommand).not.toBeCalled() // make sure that a command didn't try to run to test deployment
+  })
+})
+
+describe('publish - should_skip_deployment_cmd', () => {  
+  
+  beforeEach(async() => {
+    // This will load the mock plugin into the deploymentPlugin variable so that we can use it in the tests.
+    jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => { 
+      return Promise.resolve(mockPlugin)
+    })
+    await verifyConditions(defaultPluginConfig(), defaultContext())
   })
 
   it('should inject variable values into command', async() => {
@@ -132,30 +180,30 @@ describe('publish', () => {
       return Promise.resolve(undefined)
     })
 
-    let config = randomPluginConfig
+    let config = defaultPluginConfig()
     config.should_skip_deployment_cmd = 'echo ${nextRelease.version}'
 
-    await publish(config, context)
+    await publish(config, defaultContext())
 
-    expect(exec.runCommand).toBeCalledWith('echo 1.0.0', context)
+    expect(exec.runCommand).toBeCalledWith('echo 1.0.0', expect.anything())
   })
 
   it('should skip deployment if precheck command succeeds', async() => {
-    let config = randomPluginConfig
+    let config = defaultPluginConfig()
     config.should_skip_deployment_cmd = 'echo "Looks like 1.0.0 already has been published to npm"'
 
-    await publish(config, context)
+    await publish(config, defaultContext())
 
     expect(mockPlugin.publish).not.toBeCalled()
   })
 
   it('should execute deployment if precheck command fails', async() => {
-    let config = randomPluginConfig
+    let config = defaultPluginConfig()
     config.should_skip_deployment_cmd = 'echo "will fail" && false'
     let givenDeploymentConfig = { npmPublish: false, foo: "bar", nested: { isNested: 1 } }
     config.deploy_plugin.config = givenDeploymentConfig
 
-    await publish(config, context)
+    await publish(config, defaultContext())
 
     expect(mockPlugin.publish).toHaveBeenCalled()
   })
@@ -166,10 +214,10 @@ describe('skip future plugin functions if deployment is skipped', () => {
     jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => { 
       return Promise.resolve(mockPlugin)
     })
-    let config = randomPluginConfig
+    let config = defaultPluginConfig()
     config.should_skip_deployment_cmd = 'echo "Looks like 1.0.0 already has been published to npm"'
 
-    await runFullPluginLifecycle(config, context)
+    await runFullPluginLifecycle(config, defaultContext())
 
     expect(mockPlugin.publish).not.toBeCalled()
     expect(mockPlugin.addChannel).not.toBeCalled()
@@ -181,10 +229,10 @@ describe('skip future plugin functions if deployment is skipped', () => {
     jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => { 
       return Promise.resolve(mockPlugin)
     })
-    let config = randomPluginConfig
+    let config = defaultPluginConfig()
     config.should_skip_deployment_cmd = 'echo "will fail" && false'
 
-    await runFullPluginLifecycle(config, context)    
+    await runFullPluginLifecycle(config, defaultContext())    
 
     expect(mockPlugin.publish).toBeCalled()
     expect(mockPlugin.addChannel).toBeCalled()
@@ -201,10 +249,10 @@ describe('behavior of running deployment plugin', () => {
   })
 
   it('should provide empty object if no config is provided', async() => {
-    let config = randomPluginConfig
+    let config = defaultPluginConfig()
     config.deploy_plugin.config = undefined
 
-    await runFullPluginLifecycle(config, context)        
+    await runFullPluginLifecycle(config, defaultContext())        
     
     expect((mockPlugin.verifyConditions as jest.Mock).mock.calls[0][0]).toEqual({})
     expect((mockPlugin.analyzeCommits as jest.Mock).mock.calls[0][0]).toEqual({})
@@ -218,17 +266,18 @@ describe('behavior of running deployment plugin', () => {
   })
 
   it('should provide deployment plugin config if config is provided', async() => {
-    let config = randomPluginConfig
+    let config = defaultPluginConfig()
     let givenDeploymentConfig = { npmPublish: false, foo: "bar", nested: { isNested: 1 } }
     config.deploy_plugin.config = givenDeploymentConfig
 
-    await verifyConditions(config, context)
+    await verifyConditions(config, defaultContext())
 
     expect(mockPlugin.verifyConditions).toBeCalledWith(givenDeploymentConfig, expect.anything()) 
   })
 
   it('should provide semantic-release context to the deployment plugin for all functions', async() => {
-    await runFullPluginLifecycle(randomPluginConfig, context)
+    let context = defaultContext()
+    await runFullPluginLifecycle(defaultPluginConfig(), context)
 
     expect(mockPlugin.verifyConditions).toBeCalledWith(expect.anything(), expect.objectContaining(context))
     expect(mockPlugin.analyzeCommits).toBeCalledWith(expect.anything(), expect.objectContaining(context))
@@ -247,7 +296,7 @@ describe('behavior of running deployment plugin', () => {
       return Promise.resolve(emptyMockPlugin as SemanticReleasePlugin)
     })
 
-    await runFullPluginLifecycle(randomPluginConfig, context)       
+    await runFullPluginLifecycle(defaultPluginConfig(), defaultContext())       
 
     expect(emptyMockPlugin).not.toHaveBeenCalled()
   })
@@ -257,14 +306,14 @@ describe('prepareLoggerForDeploymentPlugin', () => {
   it('should return context (and not crash) if semantic-release modifies the logger they use', () => {
     let context = { logger: {} } as BaseContext // provide a logger that is not a Signale instance. In case semantic-release ever changes the lib they use for logging, we want to be compatible.
 
-    const actualContext = prepareLoggerForDeploymentPlugin(context, randomPluginConfig)
+    const actualContext = prepareLoggerForDeploymentPlugin(context, defaultPluginConfig())
 
     expect(actualContext).toEqual(context)
   })
 })
 
 describe('logging', () => {
-  let contextWithLogger = context
+  let contextWithLogger = defaultContext()
   let logMock = jest.fn()
 
   beforeEach(async() => {
@@ -273,7 +322,7 @@ describe('logging', () => {
     })
 
     // Override the logger with a Signale instance that writes to a mock function. This tests the plugin's actual Signale behavior of modifying logs. 
-    contextWithLogger = context 
+    contextWithLogger = defaultContext() 
 
     const consoleStream = new WritableStream()    
     consoleStream.write = logMock
@@ -294,7 +343,7 @@ describe('logging', () => {
 
   it('should generate expected logs when deployment is not skipped', async() => {
     // create a copy of randomPluginConfig
-    let config = randomPluginConfig
+    let config = defaultPluginConfig()
     config.should_skip_deployment_cmd = 'echo "run a deploy!" && false'
 
     // mock plugin functions to log something useful to test logs. 
@@ -311,7 +360,7 @@ describe('logging', () => {
       context.logger.log('running fail')
     })
    
-    await runFullPluginLifecycle(config, context)    
+    await runFullPluginLifecycle(config, contextWithLogger)    
   
     const actualLogs = logMock.mock.calls.flatMap((call) => call[0])
 
@@ -354,12 +403,12 @@ describe('logging', () => {
 `)
   })
 
-  it('should generate expected logs when deployment is skipped', async() => {
+  it('should generate expected logs when deployment is skipped, using should_skip_deployment_cmd', async() => {
     // create a copy of randomPluginConfig
-    let config = randomPluginConfig
+    let config = defaultPluginConfig()
     config.should_skip_deployment_cmd = 'echo "skip a deploy" && true'    
    
-    await runFullPluginLifecycle(config, context)    
+    await runFullPluginLifecycle(config, contextWithLogger)    
   
     const actualLogs = logMock.mock.calls.flatMap((call) => call[0])
 
@@ -383,6 +432,45 @@ describe('logging', () => {
 
 ",
   "[semantic-release] › L  Will skip publish and future plugin functions for deploy plugin because precheck command returned a non-0 exit code.
+",
+  "[semantic-release] › L  Skipping addChannel for deploy plugin @semantic-release/npm because publish was skipped.
+",
+  "[semantic-release] › L  Skipping success for deploy plugin @semantic-release/npm because publish was skipped.
+",
+  "[semantic-release] › L  Skipping fail for deploy plugin @semantic-release/npm because publish was skipped.
+",
+]
+`)
+  })
+
+  it('should generate expected logs when deployment is skipped, using is_it_deployed', async() => {
+    // create a copy of randomPluginConfig
+    let config = defaultPluginConfig()
+    config.is_it_deployed = {
+      package_name: 'react',
+      package_manager: 'npm'
+    }
+    contextWithLogger.nextRelease.version = '18.0.0'
+   
+    await runFullPluginLifecycle(config, contextWithLogger)    
+  
+    const actualLogs = logMock.mock.calls.flatMap((call) => call[0])
+
+    expect(actualLogs).toMatchInlineSnapshot(`
+[
+  "[semantic-release] › L  Running verifyConditions for deployment plugin: @semantic-release/npm
+",
+  "[semantic-release] › L  Running analyzeCommits for deployment plugin: @semantic-release/npm
+",
+  "[semantic-release] › L  Running verifyRelease for deployment plugin: @semantic-release/npm
+",
+  "[semantic-release] › L  Running generateNotes for deployment plugin: @semantic-release/npm
+",
+  "[semantic-release] › L  Running prepare for deployment plugin: @semantic-release/npm
+",
+  "[semantic-release] › L  Checking if version 18.0.0 of package react is already deployed to npm.
+",
+  "[semantic-release] › L  Will skip publish and future plugin functions for deploy plugin because version 18.0.0 is already deployed.
 ",
   "[semantic-release] › L  Skipping addChannel for deploy plugin @semantic-release/npm because publish was skipped.
 ",
