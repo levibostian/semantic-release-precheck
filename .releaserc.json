@@ -2,8 +2,13 @@
     "tagFormat": "${version}",
     "branches": [
         "main",
-        { "name": "beta", "prerelease": true },
-        { "name": "alpha", "prerelease": true }
+        { "name": "beta",
+            "prerelease": true
+        },
+        {
+            "name": "alpha",
+            "prerelease": true
+        }
     ],
     "plugins": [
         ["@semantic-release/commit-analyzer", {
@@ -12,18 +17,6 @@
         ["@semantic-release/release-notes-generator", {
             "preset": "conventionalcommits"
         }],
-        ["semantic-release-precheck", {
-            "should_skip_deployment_cmd": "npm view semantic-release-precheck@${nextRelease.version}",
-            "deploy_plugin": {
-                "name": "@semantic-release/npm",
-                "config": {
-                    "npmPublish": true,
-                    "pkgRoot": ".",
-                    "tarballDir": "false"
-                }
-            } 
-        }],
-        "@semantic-release/github",
-        "semantic-release-recovery"
+        "@semantic-release/npm"
     ]
 }

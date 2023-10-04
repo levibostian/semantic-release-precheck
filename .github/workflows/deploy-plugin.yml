@@ -1,31 +1,63 @@
 name: Deploy plugin
 
 on:
+  pull_request: # dry-run on PRs    
   push:
     branches: [main, beta, alpha]
 
 jobs:
   deploy-git-tag-and-push-npm: 
     runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production # makes npm run faster by not installing dev dependencies 
     permissions:
       contents: write # to create git tag 
     steps: 
     - uses: actions/checkout@v3
-    - uses: actions/setup-node@v3
-      with:
-        node-version-file: '.nvmrc'
-    - run: npm ci
-
-    - name: Install self so that semantic-release can use it during deployment 
-      run: |
-        npm run compile
-        npm pack
-        npm install --no-save semantic-release-precheck-1.0.0.tgz
+    
+    - name: Get branch name
+      id: branch-name
+      uses: tj-actions/branch-names@v7  
+    
+    # Squash all commits of the current branch into 1 commit. Each command below is executed as 1 step in this job 
+    # to act as comments explaining each step of the process. 
+    # Help with how to squash and merge a PR: https://stackoverflow.com/a/5201642
+    - name: Fetch all branches so we can reference origin/${{ steps.branch-name.outputs.base_ref_branch }} branch
+      run: git fetch --depth=1
+    - name: Configure git with name and email or git will throw error when trying to make a commit 
+      run: git config user.name "GitHub" && git config user.email "noreply@github.com"
+    - name: Creating new branch to make the squashed commit on. Must be checked out to a branch or commit will not succeed. 
+      run: git checkout -b "temp-squash-commits-branch"
+    - name: Squash all commits in PR into 1 commit. Using the title of this PR as the commit message. 
+      run: git reset --soft origin/${{ steps.branch-name.outputs.base_ref_branch }} && git commit -m "${{ github.event.pull_request.title }}"
+    - name: Run git log for debugging purposes to see if 1 commit was created as we expected 
+      run: git log 
+    
+    # Merge the new squashed commit into the main branch to simulate merging this PR into main branch 
+    - name: Pull the ${{ steps.branch-name.outputs.base_ref_branch }} branch locally so we can use it 
+      run: git checkout ${{ steps.branch-name.outputs.base_ref_branch }} && git pull
+    - name: Merge the squashed commit that we made into the local ${{ steps.branch-name.outputs.base_ref_branch }} branch 
+      run: git merge "temp-squash-commits-branch"
+    - name: Run git log for debugging purposes to see if the merge shows 1 new squashed commit got merged successfully 
+      run: git log 
+      
+    #- run: docker build --build-arg GITHUB_WORKSPACE=$GITHUB_WORKSPACE -t app .
+    # --user 1001 workaround https://github.com/actions/runner/issues/2033#issuecomment-1598547465
+    #- run: docker run --env GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} --env GITHUB_REF='refs/heads/${{ steps.branch-name.outputs.base_ref_branch }}' --env NPM_TOKEN='${{ secrets.NPM_PUSH_TOKEN }}' -v ${PWD}:/app app
 
     - name: Deploy git tag via semantic-release
-      uses: cycjimmy/semantic-release-action@v4
+      uses: ./.github/actions/sr-test
       with:
         semantic_version: latest # since our plugin has a devDependency on semantic-release, using latest keyword here will upgrade node_modules/ copy to the latest version for deployment 
+        dry_run: ${{ github.event_name == 'pull_request' }} # dry-run on PRs
+        ci: ${{ github.event_name != 'pull_request' }} # set as false if on a PR
+        branches: |
+          [
+            'temp-squash-commits-branch',
+            'main',
+            { name: 'beta', prerelease: true },
+            { name: 'alpha', prerelease: true }
+          ]
         extra_plugins: |
           conventional-changelog-conventionalcommits
           @semantic-release/github
