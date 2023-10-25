@@ -1,11 +1,12 @@
 import { publish, verifyConditions, generateNotes, resetPlugin, prepare, addChannel, fail, analyzeCommits, verifyRelease, success, prepareLoggerForDeploymentPlugin } from "./plugin"
 import * as npm from "./npm"
-import { AnalyzeCommitsContext, BaseContext, FailContext, PublishContext, VerifyConditionsContext, VerifyReleaseContext } from 'semantic-release';
+import { BaseContext, FailContext, PublishContext } from 'semantic-release';
 import { SemanticReleasePlugin } from "./type/semanticReleasePlugin";
 import * as exec from "./exec";
 import { PluginConfig } from "./type/pluginConfig";
 import { Signale } from 'signale'
 import { Writable as WritableStream } from "stream";
+import * as isItDeployed from 'is-it-deployed'
 
 type SemanticReleaseContext = PublishContext & FailContext 
 
@@ -233,6 +234,81 @@ describe('publish - should_skip_deployment_cmd', () => {
   })
 })
 
+describe('publish - check_if_deployed_after_publish', () => {  
+  beforeEach(async() => { 
+    // These mocks are needed to provide the mockPlugin to the plugin lifecycle functions.
+    jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => { 
+      return Promise.resolve(mockPlugin)
+    })
+    jest.spyOn(exec, 'runCommand').mockImplementation((command, context) => {
+      return Promise.resolve(undefined)
+    })    
+  })
+
+  function getTestConfig(args: { isItDeployedReturnValues: boolean[], checkIfDeployedAfterPublish: boolean | undefined }) {    
+    // Each test will use is_it_deployed to check if deployed. 
+    // Setup mock here. 
+    jest.spyOn(isItDeployed, 'isItDeployed').mockImplementation(() => { 
+      return Promise.resolve(args.isItDeployedReturnValues.shift()!)
+    })
+
+    let config = defaultPluginConfig()
+    config.check_if_deployed_after_publish = args.checkIfDeployedAfterPublish
+    config.is_it_deployed = { // to make isItDeployedMock run 
+      package_name: 'react', 
+      package_manager: 'npm' 
+    }
+    let modifiedContext = defaultContext()
+    modifiedContext.nextRelease.version = '18.0.0'
+
+    return { config, modifiedContext }
+  }
+
+  it('should not check if deployed after publish if configured not to check', async() => {    
+    const testConfig = getTestConfig({ 
+      isItDeployedReturnValues: [false, true], 
+      checkIfDeployedAfterPublish: false 
+    })   
+
+    await runFullPluginLifecycle(testConfig.config, testConfig.modifiedContext)
+
+    expect(isItDeployed.isItDeployed).toHaveBeenCalledTimes(1)
+  })
+
+  it('should not check if deployed, as the default behavior when nil configuration provided', async() => {
+    const testConfig = getTestConfig({ 
+      isItDeployedReturnValues: [false, true], 
+      checkIfDeployedAfterPublish: undefined 
+    })   
+
+    await runFullPluginLifecycle(testConfig.config, testConfig.modifiedContext)  
+
+    expect(isItDeployed.isItDeployed).toHaveBeenCalledTimes(1)
+  })
+
+  it('should succeed if deployed check after publish succeeds', async() => {
+    const testConfig = getTestConfig({ 
+      isItDeployedReturnValues: [false, true], 
+      checkIfDeployedAfterPublish: true 
+    })   
+
+    await runFullPluginLifecycle(testConfig.config, testConfig.modifiedContext) 
+
+    expect(isItDeployed.isItDeployed).toHaveBeenCalledTimes(2)
+  })
+
+  it('should throw error if deployed check after publish says its not deployed', async() => {
+    const testConfig = getTestConfig({ 
+      isItDeployedReturnValues: [false, false], 
+      checkIfDeployedAfterPublish: true 
+    })   
+
+    await expect(runFullPluginLifecycle(testConfig.config, testConfig.modifiedContext)).rejects.toThrowError()
+
+    expect(isItDeployed.isItDeployed).toHaveBeenCalledTimes(2)
+  })
+})
+
 describe('skip future plugin functions if deployment is skipped', () => {
   it('should skip functions after publish', async() => {
     jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => { 
@@ -455,7 +531,7 @@ describe('logging', () => {
   "[semantic-release] [@semantic-release/npm] › L  skip a deploy
 
 ",
-  "[semantic-release] › L  Will skip publish and future plugin functions for deploy plugin because precheck command returned a non-0 exit code.
+  "[semantic-release] › L  Will skip publish and future plugin functions for deploy plugin because version 1.0.0 is already deployed.
 ",
   "[semantic-release] › L  Skipping addChannel for deploy plugin @semantic-release/npm because publish was skipped.
 ",

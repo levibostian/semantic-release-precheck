@@ -4,7 +4,7 @@ import * as npm from "./npm";
 import { SemanticReleasePlugin } from "./type/semanticReleasePlugin";
 import { runCommand } from "./exec";
 import stringFormat from 'lodash.template';
-import { isItDeployed } from 'is-it-deployed'
+import * as isItDeployed from 'is-it-deployed'
 
 // global variables used by the whole plugin as it goes through semantic-release lifecycle
 let deploymentPlugin: SemanticReleasePlugin 
@@ -104,50 +104,66 @@ export async function prepare(pluginConfig: PluginConfig, context: PrepareContex
 }
 
 export async function publish(pluginConfig: PluginConfig, context: PublishContext) {  
-  if (pluginConfig.is_it_deployed) {
-    const packageName = pluginConfig.is_it_deployed.package_name
-    const version = context.nextRelease.version
-    const packageManager = pluginConfig.is_it_deployed.package_manager
+  const checkIfDeployed = (): Promise<boolean> | undefined => {
+    if (pluginConfig.is_it_deployed) {
+      const packageName = pluginConfig.is_it_deployed.package_name
+      const version = context.nextRelease.version
+      const packageManager = pluginConfig.is_it_deployed.package_manager
+  
+      context.logger.log(`Checking if version ${version} of package ${packageName} is already deployed to ${packageManager}.`)
+  
+      return isItDeployed.isItDeployed({ 
+        packageManager: packageManager as any, // cast to any because this wants an enum string, but we just have a string. let is-it-deployed throw an error during deployment if the package manager is invalid.
+        packageName: packageName, 
+        packageVersion: version
+      })        
+    } else if (pluginConfig.should_skip_deployment_cmd) {
+      // Using same logic as https://github.com/semantic-release/exec/blob/master/lib/exec.js to do string formatting so the syntax is similar for both plugins. 
+      const preCheckCommand = stringFormat(pluginConfig.should_skip_deployment_cmd)(context)  
+  
+      context.logger.log(`Will run precheck command: '${preCheckCommand}' - If command returns true (0 exit code), the deployment will be skipped.`)
+        
+      return new Promise(async(resolve, reject) => {
+        try {
+          context.logger.log(`Running command. Output of command will be displayed below....`)
+          await runCommand(preCheckCommand, prepareLoggerForDeploymentPlugin(context, pluginConfig))
+  
+          resolve(true)      
+        } catch (e) {
+          resolve(false)
+        }
+      })
+    } else {
+      return undefined
+    }
+  }
 
-    context.logger.log(`Checking if version ${version} of package ${packageName} is already deployed to ${packageManager}.`)
-
-    const versionAlreadyDeployed = await isItDeployed({ 
-      packageManager: packageManager as any, // cast to any because this wants an enum string, but we just have a string. let is-it-deployed throw an error during deployment if the package manager is invalid.
-      packageName: packageName, 
-      packageVersion: version
-    })
-
-    skipDeployment = versionAlreadyDeployed
+  const checkIsPublished = checkIfDeployed()
+  if (checkIsPublished) {
+    const isPublished = await checkIsPublished
+    skipDeployment = isPublished
 
     if (skipDeployment) {
       context.logger.log(`Will skip publish and future plugin functions for deploy plugin because version ${context.nextRelease.version} is already deployed.`)      
       return 
     }
-  } else if (pluginConfig.should_skip_deployment_cmd) {
-    // Using same logic as https://github.com/semantic-release/exec/blob/master/lib/exec.js to do string formatting so the syntax is similar for both plugins. 
-    const preCheckCommand = stringFormat(pluginConfig.should_skip_deployment_cmd)(context)  
-
-    context.logger.log(`Will run precheck command: '${preCheckCommand}' - If command returns true (0 exit code), the deployment will be skipped.`)
-      
-    try {
-      context.logger.log(`Running command. Output of command will be displayed below....`)  
-      await runCommand(preCheckCommand, prepareLoggerForDeploymentPlugin(context, pluginConfig))
-
-      skipDeployment = true
-    } catch (e) {
-      skipDeployment = false
-    }
-
-    if (skipDeployment) {
-      context.logger.log(`Will skip publish and future plugin functions for deploy plugin because precheck command returned a non-0 exit code.`)
-      return
-    }
-  }
+  }  
 
   if (deploymentPlugin.publish) {
     context.logger.log(`Running publish for deployment plugin: ${pluginConfig.deploy_plugin.name}`)
 
     await deploymentPlugin.publish(pluginConfig.deploy_plugin.config || {}, prepareLoggerForDeploymentPlugin(context, pluginConfig))
+    
+    const shouldCheckIfPublishedAfterPublish = pluginConfig.check_if_deployed_after_publish
+    
+    if (shouldCheckIfPublishedAfterPublish) {
+      let checkIsPublished = checkIfDeployed()
+      const didPublishSuccessfully = await checkIsPublished
+
+      if (!didPublishSuccessfully) {
+        throw new Error(`Publish plugin, ${pluginConfig.deploy_plugin.name}, successfully ran. But after checking server, the version ${context.nextRelease.version} was not found. Therefore, the publish plugin may have not executed successfully.`)
+      }
+    }    
   }
 }
 

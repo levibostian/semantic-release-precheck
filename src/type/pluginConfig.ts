@@ -4,6 +4,7 @@ export interface PluginConfig {
     package_manager: string 
   }
   should_skip_deployment_cmd?: string
+  check_if_deployed_after_publish?: boolean
   deploy_plugin: {
     name: string
     config?: Object
