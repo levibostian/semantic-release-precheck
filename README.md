@@ -28,6 +28,7 @@ Let's use an example of deploying a node module to npmjs:
                 "package_manager": "npm",
                 "package_name": "name-of-package"
             },
+            "check_if_deployed_after_publish": true,
             "deploy_plugin": {
                 "name": "@semantic-release/npm",
                 "config": {
@@ -58,6 +59,8 @@ Example:
     ]
 }
 ```
+
+* `check_if_deployed_after_publish` will run `is_it_deployed` or `should_skip_deployment_cmd` again after running the `deploy_plugin`. Enable this feature if you want to be extra confident that the deployment was successful to the server. 
 
 * `deploy_plugin` is used to define an existing sematic-release plugin that should be used to perform the deployment, if a deployment is to occur. This allows you to conveniently re-use existing plugins in the semantic-release community. 
 
