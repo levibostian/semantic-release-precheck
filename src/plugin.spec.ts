@@ -7,6 +7,7 @@ import { PluginConfig } from "./type/pluginConfig";
 import { Signale } from 'signale'
 import { Writable as WritableStream } from "stream";
 import * as isItDeployed from 'is-it-deployed'
+import * as git from "./git"
 
 type SemanticReleaseContext = PublishContext & FailContext 
 
@@ -101,6 +102,9 @@ beforeEach(() => {
   resetPlugin()
 
   mockPlugin = getMockPlugin()
+
+  // Dont try to actually run a delete tag command for any test. It will try to delete a tag on this git repo, haha!
+  jest.spyOn(git, 'deleteTag').mockImplementation(() => { return Promise.resolve() })
 })
 
 describe('verify plugin config', () => {
@@ -309,6 +313,105 @@ describe('publish - check_if_deployed_after_publish', () => {
   })
 })
 
+describe('publish - handling deployment failures', () => {
+  beforeEach(async() => { 
+    jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => {
+      return Promise.resolve(mockPlugin)
+    })
+  })
+
+
+  describe('expect to delete git tag', () => {
+    it('should delete git tag if deployment plugin throws an error', async() => {
+      mockPlugin.publish = jest.fn().mockImplementation((config, context) => {
+        throw new Error('')
+      })
+  
+      await expect(runFullPluginLifecycle(defaultPluginConfig(), defaultContext())).rejects.toThrowError()
+  
+      expect(git.deleteTag).toBeCalledWith('v1.0.0', expect.anything())
+    })
+  
+    it('should not delete git tag if deployment plugin succeeds', async() => {
+      mockPlugin.publish = jest.fn().mockImplementation((config, context) => {
+        return Promise.resolve()
+      })
+  
+      await runFullPluginLifecycle(defaultPluginConfig(), defaultContext())
+  
+      expect(git.deleteTag).not.toBeCalled()
+    })
+  
+    it('should delete git tag if deployment check after publish says that deployment didnt succeed', async() => {
+      mockPlugin.publish = jest.fn().mockImplementation((config, context) => {
+        return Promise.resolve()
+      })    
+      jest.spyOn(isItDeployed, 'isItDeployed').mockImplementation(() => { 
+        return Promise.resolve(false) // always return false to simulate deployment never succeeding 
+      })
+      let config = defaultPluginConfig()
+      config.check_if_deployed_after_publish = true
+      config.is_it_deployed = { // to make isItDeployedMock run 
+        package_name: 'react', 
+        package_manager: 'npm' 
+      }
+  
+      await expect(runFullPluginLifecycle(config, defaultContext())).rejects.toThrowError()
+  
+      expect(git.deleteTag).toBeCalledWith('v1.0.0', expect.anything())
+    })
+  
+    it('should not delete git tag if deployment check after publish says that deployment succeeded', async() => {
+      mockPlugin.publish = jest.fn().mockImplementation((config, context) => {
+        return Promise.resolve()
+      })
+      const isItDeployedReturnValues = [false, true]
+      jest.spyOn(isItDeployed, 'isItDeployed').mockImplementation(() => { 
+        return Promise.resolve(isItDeployedReturnValues.shift()!)
+      })
+      let config = defaultPluginConfig()
+      config.check_if_deployed_after_publish = true
+      config.is_it_deployed = { // to make isItDeployedMock run 
+        package_name: 'react', 
+        package_manager: 'npm' 
+      }
+  
+      await runFullPluginLifecycle(config, defaultContext())
+  
+      expect(git.deleteTag).not.toBeCalled()
+    })
+  })
+
+  describe('expect publish step to throw error', () => {
+    it('plugin publish step should throw error if deployment plugin also threw an error', async() => { 
+      const givenDeployPluginErrorMessage = "publish failed"
+  
+     mockPlugin.publish = jest.fn().mockImplementation((config, context) => {
+       throw new Error(givenDeployPluginErrorMessage)
+     })
+  
+     await expect(runFullPluginLifecycle(defaultPluginConfig(), defaultContext())).rejects.toThrow(givenDeployPluginErrorMessage)
+   })
+
+    it('plugin publish step should throw error if deployment check after publish says that deployment didnt succeed', async() => {
+      mockPlugin.publish = jest.fn().mockImplementation((config, context) => {
+        return Promise.resolve()
+      })    
+      jest.spyOn(isItDeployed, 'isItDeployed').mockImplementation(() => { 
+        return Promise.resolve(false) // always return false to simulate deployment never succeeding 
+      })
+      let config = defaultPluginConfig()
+      config.check_if_deployed_after_publish = true
+      config.is_it_deployed = { // to make isItDeployedMock run 
+        package_name: 'react', 
+        package_manager: 'npm' 
+      }
+
+      await expect(runFullPluginLifecycle(config, defaultContext())).rejects.toThrowErrorMatchingInlineSnapshot(`"Publish plugin, @semantic-release/npm, successfully ran. But after checking npm, the version 1.0.0 was not found. Therefore, the publish plugin may have not executed successfully."`)
+    })
+  })
+})
+
 describe('skip future plugin functions if deployment is skipped', () => {
   it('should skip functions after publish', async() => {
     jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => { 
@@ -439,12 +542,6 @@ describe('logging', () => {
         success: { badge: 'S', color: "white", label: "", stream: [consoleStream as NodeJS.WriteStream] },
       },
     })
-  })
-
-  it('should generate expected logs when deployment is not skipped', async() => {
-    // create a copy of randomPluginConfig
-    let config = defaultPluginConfig()
-    config.should_skip_deployment_cmd = 'echo "run a deploy!" && false'
 
     // mock plugin functions to log something useful to test logs. 
     mockPlugin.publish = jest.fn().mockImplementation((config, context) => {
@@ -459,6 +556,12 @@ describe('logging', () => {
     mockPlugin.fail = jest.fn().mockImplementation((config, context) => {
       context.logger.log('running fail')
     })
+  })
+
+  it('should generate expected logs when deployment is not skipped', async() => {
+    // create a copy of randomPluginConfig
+    let config = defaultPluginConfig()
+    config.should_skip_deployment_cmd = 'echo "run a deploy!" && false'    
    
     await runFullPluginLifecycle(config, contextWithLogger)    
   
@@ -498,6 +601,43 @@ describe('logging', () => {
   "[semantic-release] › L  Running fail for deployment plugin: @semantic-release/npm
 ",
   "[semantic-release] [@semantic-release/npm] › L  running fail
+",
+]
+`)
+  })
+
+  it('should generate expected logs when publish deployment plugin throws error', async() => {    
+    mockPlugin.publish = jest.fn().mockImplementation((config, context) => {
+      throw new Error('publish failed')
+    })
+   
+    await expect(runFullPluginLifecycle(defaultPluginConfig(), contextWithLogger)).rejects.toThrowError()
+  
+    const actualLogs = logMock.mock.calls.flatMap((call) => call[0])
+
+    expect(actualLogs).toMatchInlineSnapshot(`
+[
+  "[semantic-release] › L  Running verifyConditions for deployment plugin: @semantic-release/npm
+",
+  "[semantic-release] › L  Running analyzeCommits for deployment plugin: @semantic-release/npm
+",
+  "[semantic-release] › L  Running verifyRelease for deployment plugin: @semantic-release/npm
+",
+  "[semantic-release] › L  Running generateNotes for deployment plugin: @semantic-release/npm
+",
+  "[semantic-release] › L  Running prepare for deployment plugin: @semantic-release/npm
+",
+  "[semantic-release] › L  Will run precheck command: 'false' - If command returns true (0 exit code), the deployment will be skipped.
+",
+  "[semantic-release] › L  Running command. Output of command will be displayed below....
+",
+  "[semantic-release] › L  Running publish for deployment plugin: @semantic-release/npm
+",
+  "[semantic-release] › L  Looks like something went wrong during the deployment. No worries! I will try to help by cleaning up after the failed deployment so you can re-try the deployment if you wish.
+",
+  "[semantic-release] › L  Deleting git tag v1.0.0...
+",
+  "[semantic-release] › L  Done! Cleanup is complete and you should be able to retry the deployment now.
 ",
 ]
 `)

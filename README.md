@@ -1,10 +1,6 @@
 # semantic-release-precheck
 
-[semantic-release](https://github.com/semantic-release/semantic-release) plugin to perform a pre-check for an existing deployment before attempting a new deployment. To helps prevent the scenario where a deployment is retried after previous failure and deployment gets stuck in a retry loop, never to succeed. 
-
-Many services that you deploy to (npmjs, Maven Central, Cocoapods) do not allow you to overwrite a version once you have pushed it already. This behavior can add complexity to your automated deployment process where a deployment may fail (indefinitely) when you retry it. 
-
-This plugin tries to avoid that scenario where it will skip a deployment if a particular version has already been deployed before. 
+[semantic-release](https://github.com/semantic-release/semantic-release) plugin to try and create a more stable `semantic-release` deployment process. This is done by (1) confirming with package managers that the deployment actually succeeded as expected and (2) if a deployment fails, it allows you to retry. 
 
 # Getting started 
 
@@ -122,6 +118,6 @@ $ npm run test
 This project's vision is led by fundamental goals that this plugin is trying to accomplish. With all future development, we try to follow these goals.
 
 1. The plugin allows you to re-use existing semantic-release plugins for deployments. This plugin is not trying to replace existing plugins, but add extra functionality to each of them. By leveraging existing plugins, we reduce the amount of work required to improve our deployments. 
-2. Existing semantic-release configurations should be able to adopt this plugin. This is the main reason for adding `deploy_plugin.config` as an option to the plugin, so this plugin can be compatible with deployment modules and their options. 
-3. This plugin's purpose is to avoid a failed deployment that could occur during deployment when pushing a version. There may be other use cases you can think of for a check to run before a deployment is done, but that may not meet the purpose of this plugin. You may instead be looking for another plugin such as [`exec`](https://github.com/semantic-release/exec). 
+2. Existing semantic-release configurations should be able to adopt this plugin. No need for plugin authors to adopt this workflow, but instead allow anyone who runs `semantic-release` to use it if they choose. 
+3. This plugin's purpose is to provide a more powerful `publish` step for `semantic-release`. We try to keep this plugin focused and not bloated with features. If you have an idea you want to contribute back to this project, it's suggested to open an issue pitching the idea first. 
 
