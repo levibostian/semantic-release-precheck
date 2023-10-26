@@ -5,6 +5,7 @@ import { SemanticReleasePlugin } from "./type/semanticReleasePlugin";
 import { runCommand } from "./exec";
 import stringFormat from 'lodash.template';
 import * as isItDeployed from 'is-it-deployed'
+import * as git from "./git"
 
 // global variables used by the whole plugin as it goes through semantic-release lifecycle
 let deploymentPlugin: SemanticReleasePlugin 
@@ -138,6 +139,15 @@ export async function publish(pluginConfig: PluginConfig, context: PublishContex
     }
   }
 
+  const deleteGitTag = async(tagNameToDelete: string): Promise<void> => { 
+    context.logger.log(`Looks like something went wrong during the deployment. No worries! I will try to help by cleaning up after the failed deployment so you can re-try the deployment if you wish.`)
+
+    context.logger.log(`Deleting git tag ${tagNameToDelete}...`)    
+    await git.deleteTag(tagNameToDelete, context)
+  
+    context.logger.log(`Done! Cleanup is complete and you should be able to retry the deployment now.`)    
+  }
+
   const checkIsPublished = checkIfDeployed()
   if (checkIsPublished) {
     const isPublished = await checkIsPublished
@@ -152,7 +162,15 @@ export async function publish(pluginConfig: PluginConfig, context: PublishContex
   if (deploymentPlugin.publish) {
     context.logger.log(`Running publish for deployment plugin: ${pluginConfig.deploy_plugin.name}`)
 
-    await deploymentPlugin.publish(pluginConfig.deploy_plugin.config || {}, prepareLoggerForDeploymentPlugin(context, pluginConfig))
+    try {
+      await deploymentPlugin.publish(pluginConfig.deploy_plugin.config || {}, prepareLoggerForDeploymentPlugin(context, pluginConfig))
+    } catch (error) {
+      // delete git tag that semantic-release created so that you can retry deployment. 
+      await deleteGitTag(context.nextRelease.gitTag)
+      // re-throw the error as this is the behavior that semantic-release expects.
+      // thrown errors by any plugin are meant to stop execution of semantic-release.
+      throw error
+    }
     
     const shouldCheckIfPublishedAfterPublish = pluginConfig.check_if_deployed_after_publish
     
@@ -161,7 +179,11 @@ export async function publish(pluginConfig: PluginConfig, context: PublishContex
       const didPublishSuccessfully = await checkIsPublished
 
       if (!didPublishSuccessfully) {
-        throw new Error(`Publish plugin, ${pluginConfig.deploy_plugin.name}, successfully ran. But after checking server, the version ${context.nextRelease.version} was not found. Therefore, the publish plugin may have not executed successfully.`)
+        // delete git tag that semantic-release created so that you can retry deployment. 
+        await deleteGitTag(context.nextRelease.gitTag)
+
+        // throw error so that semantic-release knows to stop execution.
+        throw new Error(`Publish plugin, ${pluginConfig.deploy_plugin.name}, successfully ran. But after checking ${pluginConfig.is_it_deployed?.package_manager}, the version ${context.nextRelease.version} was not found. Therefore, the publish plugin may have not executed successfully.`)
       }
     }    
   }
