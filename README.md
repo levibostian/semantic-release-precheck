@@ -1,6 +1,6 @@
 # semantic-release-precheck
 
-[semantic-release](https://github.com/semantic-release/semantic-release) plugin to try and create a more stable `semantic-release` deployment process. This is done by (1) confirming with package managers that the deployment actually succeeded as expected and (2) if a deployment fails, it allows you to retry. 
+[semantic-release](https://github.com/semantic-release/semantic-release) plugin that skips publishing if that version was published previously. Great plugin to verify that a package was successfully pushed to a package manager or as a way to retry deploying. 
 
 # Getting started 
 
@@ -12,25 +12,14 @@ Let's use an example of deploying a node module to npmjs:
 
 ```json
 {
-    "tagFormat": "${version}",
-    "branches": [
-        "main"
-    ],
     "plugins": [
-        "@semantic-release/commit-analyzer",
-        "@semantic-release/release-notes-generator",
         ["semantic-release-precheck", {
-            "is_it_deployed": {
-                "package_manager": "npm",
-                "package_name": "name-of-package"
-            },
-            "check_if_deployed_after_publish": true,
-            "deploy_plugin": {
-                "name": "@semantic-release/npm",
-                "config": {
+            "package_manager": "npm",
+            "packages": ["name-of-package"],
+            "publish_plugin":
+                ["@semantic-release/npm", {
                     "pkgRoot": "dist/"
-                }
-            }             
+                }]
         }]
     ]
 }
@@ -38,48 +27,13 @@ Let's use an example of deploying a node module to npmjs:
 
 Let's break this configuration down. 
 
-* `is_it_deployed` uses the `package_manager` and `package_name` to determine if the version has already been deployed. This internally uses the [is-it-deployed](https://github.com/levibostian/is-it-deployed/) module. Check if [your package manager](https://github.com/levibostian/is-it-deployed/?tab=readme-ov-file#supported-package-managers) is currently supported by the module and see examples for what values to use for it. 
+* `package_manager` and `package_name` to determine if the version has already been deployed. This internally uses the [is-it-deployed](https://github.com/levibostian/is-it-deployed/) module. Check if [your package manager](https://github.com/levibostian/is-it-deployed/?tab=readme-ov-file#supported-package-managers) is currently supported by the module and see examples for what values to use for it. 
 
-If `is_it_deployed` will not work for you and your deployment process, you can use `should_skip_deployment_cmd` instead.
+* `check_after_publish` will run `is_it_deployed` again after running the `publish_plugin`. Enable this feature if you want to be extra confident that the deployment was successful to the server. 
 
-* `should_skip_deployment_cmd` (not needed if using `is_it_deployed`) is a command that executes to check if the version has already been deployed. If command returns true (0 exit code), this indicates that the version has previously been deployed and a new deployment should be skipped. 
+* `publish_plugin` is used to define an existing sematic-release plugin that should be used to perform the deployment, if a deployment is to occur. This allows you to conveniently re-use existing plugins in the semantic-release community. 
 
-Example: 
-```json
-{    
-    "plugins": [
-        ["semantic-release-precheck", {
-            "should_skip_deployment_cmd": "npm view name-of-project@${nextRelease.version}",
-            ...
-        }]
-    ]
-}
-```
-
-* `check_if_deployed_after_publish` will run `is_it_deployed` or `should_skip_deployment_cmd` again after running the `deploy_plugin`. Enable this feature if you want to be extra confident that the deployment was successful to the server. 
-
-* `deploy_plugin` is used to define an existing sematic-release plugin that should be used to perform the deployment, if a deployment is to occur. This allows you to conveniently re-use existing plugins in the semantic-release community. 
-
-It's important that whatever plugin that you use for deployment gets moved out of the `plugins` array and instead goes inside of `semantic-release-precheck` object. As an example, **this is an invalid configuration:**
-
-```json
-{
-    "plugins": [
-        "@semantic-release/npm",
-        ["semantic-release-precheck", {
-            "deploy_plugin": {
-                "name": "@semantic-release/npm"
-            }
-        }]
-    ]
-}
-```
-
-It's invalid because `@semantic-release/npm` exists *both* inside of `semantic-release-precheck` and outside of it. 
-
-*Note:* You must have the deployment plugin installed with npm before running your deployment. 
-
-There is an `config` object inside of `deploy_plugin`. This object will be provided to the `deploy_plugin` during execution. This means that any option that the `deploy_plugin` supports can go into this object. 
+> *Reminder:* Install the publish plugin before running semantic-release. 
 
 # Why is this plugin needed? 
 
