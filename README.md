@@ -14,9 +14,11 @@ Let's use an example of deploying a node module to npmjs:
 {
     "plugins": [
         ["semantic-release-precheck", {
-            "package_manager": "npm",
-            "packages": ["name-of-package"],
-            "publish_plugin":
+            "is_it_deployed": {
+                "package_manager": "npm",
+                "package": "name-of-package",
+            },
+            "deploy_plugin":
                 ["@semantic-release/npm", {
                     "pkgRoot": "dist/"
                 }]
@@ -27,13 +29,16 @@ Let's use an example of deploying a node module to npmjs:
 
 Let's break this configuration down. 
 
-* `package_manager` and `package_name` to determine if the version has already been deployed. This internally uses the [is-it-deployed](https://github.com/levibostian/is-it-deployed/) module. Check if [your package manager](https://github.com/levibostian/is-it-deployed/?tab=readme-ov-file#supported-package-managers) is currently supported by the module and see examples for what values to use for it. 
+### Options
 
-* `check_after_publish` will run `is_it_deployed` again after running the `publish_plugin`. Enable this feature if you want to be extra confident that the deployment was successful to the server. 
+| Options      | Description                | Default      |
+| ------------ | -------------------------- | ------------ |
+| `is_it_deployed` | Uses the tool [is-it-deployed](https://github.com/levibostian/is-it-deployed/) to check if that version of the package has been deployed already. Check if [your package manager](https://github.com/levibostian/is-it-deployed/?tab=readme-ov-file#supported-package-managers) is currently supported by the module and see examples for what values to use for it. If not, use `should_skip_cmd`. | null |
+| `should_skip_cmd` | A bash command to execute. If command runs successfully (exit code 0), then `publish` step of `deploy_plugin` will be skipped. | null |
+| `check_after_publish` | After `deploy_plugin` `publish` step gets executed, run  will run `is_it_deployed` and `should_skip_cmd` again. Enable this feature if you want to be extra confident that the deployment was successful to the server. | `false` |
+| `deploy_plugin` | Defines an existing sematic-release plugin that you want `precheck` to execute for you. It's suggested that if you configure `is_it_deployed` to `package_manager = npm`, for example, then the `deploy_plugin` should deploy a npm module to a npm server. | null | 
 
-* `publish_plugin` is used to define an existing sematic-release plugin that should be used to perform the deployment, if a deployment is to occur. This allows you to conveniently re-use existing plugins in the semantic-release community. 
-
-> *Reminder:* Install the publish plugin before running semantic-release. 
+> *Reminder:* Install the deploy plugin before running semantic-release. 
 
 # Why is this plugin needed? 
 
