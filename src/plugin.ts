@@ -1,19 +1,25 @@
 import { FailContext, VerifyReleaseContext, VerifyConditionsContext, AnalyzeCommitsContext, GenerateNotesContext, PrepareContext, PublishContext, AddChannelContext, SuccessContext, BaseContext } from "semantic-release"
-import { PluginConfig, isValid as isValidPluginConfig } from "./type/pluginConfig";
-import * as npm from "./npm";
+import { PluginConfig, parse } from "./type/pluginConfig";
 import { SemanticReleasePlugin } from "./type/semanticReleasePlugin";
 import { runCommand } from "./exec";
 import stringFormat from 'lodash.template';
 import * as isItDeployed from 'is-it-deployed'
-import * as git from "./git"
+import * as steps from './steps'
 
-// global variables used by the whole plugin as it goes through semantic-release lifecycle
-let deploymentPlugin: SemanticReleasePlugin 
-let skipDeployment = false
+// State of the plugin.
+let state: {
+  deploymentPlugin: SemanticReleasePlugin
+  skipDeployment: boolean
+  pluginConfig: PluginConfig 
+} 
+resetState()
 
-export function resetPlugin() { // useful for running tests 
-  deploymentPlugin = {}
-  skipDeployment = false
+export function resetState() { // useful for running tests 
+  state = {
+    deploymentPlugin: {},
+    skipDeployment: false,
+    pluginConfig: undefined
+  }
 }
 
 // semantic-release uses a lib called signale for logging. This lib helps semantic-release make logs better by telling you what plugin is executing. 
@@ -49,38 +55,22 @@ export function prepareLoggerForDeploymentPlugin<CONTEXT>(context: BaseContext, 
 
 // -- Plugin lifecycle functions 
 
-export async function verifyConditions(pluginConfig: PluginConfig, context: VerifyConditionsContext) {
-  const errorMessage = isValidPluginConfig(pluginConfig)
-  if (errorMessage) {
-    throw new Error(errorMessage)
-  }
+export async function verifyConditions(rawPluginConfig: any, context: VerifyConditionsContext) {
+  const result = await steps.verifyConditions(rawPluginConfig, context)
 
-  // This is the first function that semantic-release calls on a plugin. 
-  // Check if the deployment plugin is already installed. If not, we must throw an error because we cannot install it for them. 
-  // I have tried to do that, but it seems that node loads all modules at startup so it cannot find a module after it's installed during runtime. 
-  let alreadyInstalledPlugin = await npm.getDeploymentPlugin(pluginConfig.deploy_plugin.name)
-  if (!alreadyInstalledPlugin) {
-    throw new Error(`Deployment plugin, ${pluginConfig.deploy_plugin.name}, doesn't seem to be installed. Install it with \`npm install ${pluginConfig.deploy_plugin.name}\` and then try running your deployment again.`)
-  }
+  state.pluginConfig = result.pluginConfig
+  state.deploymentPlugin = result.deploymentPlugin
+}
 
-  deploymentPlugin = alreadyInstalledPlugin
+export async function analyzeCommits(_: any, context: AnalyzeCommitsContext) {  
+  if (state.deploymentPlugin.analyzeCommits) {  
+    context.logger.log(`Running analyzeCommits for deployment plugin: ${state.pluginConfig.deploy_plugin.name}`)
 
-  if (deploymentPlugin.verifyConditions) {    
-    context.logger.log(`Running verifyConditions for deployment plugin: ${pluginConfig.deploy_plugin.name}`)
-
-    await deploymentPlugin.verifyConditions(pluginConfig.deploy_plugin.config || {}, prepareLoggerForDeploymentPlugin(context, pluginConfig))
+    await state.deploymentPlugin.analyzeCommits(pluginConfig.deploy_plugin.config || {}, prepareLoggerForDeploymentPlugin(context, pluginConfig))
   }
 }
 
-export async function analyzeCommits(pluginConfig: PluginConfig, context: AnalyzeCommitsContext) {  
-  if (deploymentPlugin.analyzeCommits) {  
-    context.logger.log(`Running analyzeCommits for deployment plugin: ${pluginConfig.deploy_plugin.name}`)
-
-    await deploymentPlugin.analyzeCommits(pluginConfig.deploy_plugin.config || {}, prepareLoggerForDeploymentPlugin(context, pluginConfig))
-  }
-}
-
-export async function verifyRelease(pluginConfig: PluginConfig, context: VerifyReleaseContext) {
+export async function verifyRelease(_: any, context: VerifyReleaseContext) {
   if (deploymentPlugin.verifyRelease) {
     context.logger.log(`Running verifyRelease for deployment plugin: ${pluginConfig.deploy_plugin.name}`)
 
@@ -88,7 +78,7 @@ export async function verifyRelease(pluginConfig: PluginConfig, context: VerifyR
   }
 }
 
-export async function generateNotes(pluginConfig: PluginConfig, context: VerifyReleaseContext) {
+export async function generateNotes(rawPluginConfig: any, context: VerifyReleaseContext) {
   if (deploymentPlugin.generateNotes) {
     context.logger.log(`Running generateNotes for deployment plugin: ${pluginConfig.deploy_plugin.name}`)
 
@@ -96,7 +86,7 @@ export async function generateNotes(pluginConfig: PluginConfig, context: VerifyR
   }
 }
 
-export async function prepare(pluginConfig: PluginConfig, context: PrepareContext) {
+export async function prepare(rawPluginConfig: any, context: PrepareContext) {
   if (deploymentPlugin.prepare) {
     context.logger.log(`Running prepare for deployment plugin: ${pluginConfig.deploy_plugin.name}`)
 
@@ -104,8 +94,8 @@ export async function prepare(pluginConfig: PluginConfig, context: PrepareContex
   }
 }
 
-export async function publish(pluginConfig: PluginConfig, context: PublishContext) {  
-  const checkIfDeployed = (): Promise<boolean> | undefined => {
+export async function publish(rawPluginConfig: any, context: PublishContext) {  
+  const checkIfDeployed = async(): Promise<boolean> => {
     if (pluginConfig.is_it_deployed) {
       const packageName = pluginConfig.is_it_deployed.package_name
       const version = context.nextRelease.version
@@ -113,83 +103,56 @@ export async function publish(pluginConfig: PluginConfig, context: PublishContex
   
       context.logger.log(`Checking if version ${version} of package ${packageName} is already deployed to ${packageManager}.`)
   
-      return isItDeployed.isItDeployed({ 
+      const isItDeployedCheck = await isItDeployed.isItDeployed({ 
         packageManager: packageManager as any, // cast to any because this wants an enum string, but we just have a string. let is-it-deployed throw an error during deployment if the package manager is invalid.
         packageName: packageName, 
         packageVersion: version
-      })        
-    } else if (pluginConfig.should_skip_deployment_cmd) {
+      })
+
+      if (isItDeployedCheck) return true 
+    }     
+    
+    if (pluginConfig.should_skip_cmd) {
       // Using same logic as https://github.com/semantic-release/exec/blob/master/lib/exec.js to do string formatting so the syntax is similar for both plugins. 
-      const preCheckCommand = stringFormat(pluginConfig.should_skip_deployment_cmd)(context)  
+      const preCheckCommand = stringFormat(pluginConfig.should_skip_cmd)(context)  
   
       context.logger.log(`Will run precheck command: '${preCheckCommand}' - If command returns true (0 exit code), the deployment will be skipped.`)
         
-      return new Promise(async(resolve, reject) => {
-        try {
-          context.logger.log(`Running command. Output of command will be displayed below....`)
-          await runCommand(preCheckCommand, prepareLoggerForDeploymentPlugin(context, pluginConfig))
-  
-          resolve(true)      
-        } catch (e) {
-          resolve(false)
-        }
-      })
-    } else {
-      return undefined
-    }
-  }
+      try {
+        context.logger.log(`Running command. Output of command will be displayed below....`)
+        await runCommand(preCheckCommand, prepareLoggerForDeploymentPlugin(context, pluginConfig))            
 
-  const deleteGitTag = async(tagNameToDelete: string): Promise<void> => { 
-    context.logger.log(`Looks like something went wrong during the deployment. No worries! I will try to help by cleaning up after the failed deployment so you can re-try the deployment if you wish.`)
+        return true  // exit 0 is is it deployed         
+      } catch (e) {}
+    } 
 
-    context.logger.log(`Deleting git tag ${tagNameToDelete}...`)    
-    await git.deleteTag(tagNameToDelete, context)
-  
-    context.logger.log(`Done! Cleanup is complete and you should be able to retry the deployment now.`)    
-  }
-
-  const checkIsPublished = checkIfDeployed()
-  if (checkIsPublished) {
-    const isPublished = await checkIsPublished
-    skipDeployment = isPublished
-
-    if (skipDeployment) {
-      context.logger.log(`Will skip publish and future plugin functions for deploy plugin because version ${context.nextRelease.version} is already deployed.`)      
-      return 
-    }
+    return false // the default return result 
   }  
+ 
+  const isPublished = await checkIfDeployed()
+  skipDeployment = isPublished
+
+  if (skipDeployment) {
+    context.logger.log(`Will skip publish and future plugin functions for deploy plugin because version ${context.nextRelease.version} is already deployed.`)      
+    return 
+  }
 
   if (deploymentPlugin.publish) {
     context.logger.log(`Running publish for deployment plugin: ${pluginConfig.deploy_plugin.name}`)
+    await deploymentPlugin.publish(pluginConfig.deploy_plugin.config || {}, prepareLoggerForDeploymentPlugin(context, pluginConfig))
+  } 
+        
+  if (pluginConfig.check_if_deployed_after_publish) {
+    const didPublishSuccessfully = await checkIfDeployed()    
 
-    try {
-      await deploymentPlugin.publish(pluginConfig.deploy_plugin.config || {}, prepareLoggerForDeploymentPlugin(context, pluginConfig))
-    } catch (error) {
-      // delete git tag that semantic-release created so that you can retry deployment. 
-      await deleteGitTag(context.nextRelease.gitTag)
-      // re-throw the error as this is the behavior that semantic-release expects.
-      // thrown errors by any plugin are meant to stop execution of semantic-release.
-      throw error
+    if (!didPublishSuccessfully) {      
+      // throw error so that semantic-release knows to stop execution.
+      throw new Error(`Publish plugin, ${pluginConfig.deploy_plugin.name}, successfully ran. But after checking ${pluginConfig.is_it_deployed?.package_manager}, the version ${context.nextRelease.version} was not found. Therefore, the publish plugin may have not executed successfully.`)
     }
-    
-    const shouldCheckIfPublishedAfterPublish = pluginConfig.check_if_deployed_after_publish
-    
-    if (shouldCheckIfPublishedAfterPublish) {
-      let checkIsPublished = checkIfDeployed()
-      const didPublishSuccessfully = await checkIsPublished
-
-      if (!didPublishSuccessfully) {
-        // delete git tag that semantic-release created so that you can retry deployment. 
-        await deleteGitTag(context.nextRelease.gitTag)
-
-        // throw error so that semantic-release knows to stop execution.
-        throw new Error(`Publish plugin, ${pluginConfig.deploy_plugin.name}, successfully ran. But after checking ${pluginConfig.is_it_deployed?.package_manager}, the version ${context.nextRelease.version} was not found. Therefore, the publish plugin may have not executed successfully.`)
-      }
-    }    
   }
 }
 
-export async function addChannel(pluginConfig: PluginConfig, context: AddChannelContext) {
+export async function addChannel(rawPluginConfig: any, context: AddChannelContext) {
   if (skipDeployment) {
     context.logger.log(`Skipping addChannel for deploy plugin ${pluginConfig.deploy_plugin.name} because publish was skipped.`)
     return
@@ -201,7 +164,7 @@ export async function addChannel(pluginConfig: PluginConfig, context: AddChannel
   }  
 }
 
-export async function success(pluginConfig: PluginConfig, context: SuccessContext) {
+export async function success(rawPluginConfig: any, context: SuccessContext) {
   if (skipDeployment) {
     context.logger.log(`Skipping success for deploy plugin ${pluginConfig.deploy_plugin.name} because publish was skipped.`)
     return
@@ -213,7 +176,7 @@ export async function success(pluginConfig: PluginConfig, context: SuccessContex
   }
 }
 
-export async function fail(pluginConfig: PluginConfig, context: FailContext) {  
+export async function fail(rawPluginConfig: any, context: FailContext) {  
   if (skipDeployment) {
     context.logger.log(`Skipping fail for deploy plugin ${pluginConfig.deploy_plugin.name} because publish was skipped.`)
     return

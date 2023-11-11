@@ -7,7 +7,6 @@ import { PluginConfig } from "./type/pluginConfig";
 import { Signale } from 'signale'
 import { Writable as WritableStream } from "stream";
 import * as isItDeployed from 'is-it-deployed'
-import * as git from "./git"
 
 type SemanticReleaseContext = PublishContext & FailContext 
 
@@ -101,10 +100,7 @@ let mockPlugin: SemanticReleasePlugin
 beforeEach(() => {
   resetPlugin()
 
-  mockPlugin = getMockPlugin()
-
-  // Dont try to actually run a delete tag command for any test. It will try to delete a tag on this git repo, haha!
-  jest.spyOn(git, 'deleteTag').mockImplementation(() => { return Promise.resolve() })
+  mockPlugin = getMockPlugin()  
 })
 
 describe('verify plugin config', () => {
@@ -317,68 +313,6 @@ describe('publish - handling deployment failures', () => {
   beforeEach(async() => { 
     jest.spyOn(npm, 'getDeploymentPlugin').mockImplementation((name: string) => {
       return Promise.resolve(mockPlugin)
-    })
-  })
-
-
-  describe('expect to delete git tag', () => {
-    it('should delete git tag if deployment plugin throws an error', async() => {
-      mockPlugin.publish = jest.fn().mockImplementation((config, context) => {
-        throw new Error('')
-      })
-  
-      await expect(runFullPluginLifecycle(defaultPluginConfig(), defaultContext())).rejects.toThrowError()
-  
-      expect(git.deleteTag).toBeCalledWith('v1.0.0', expect.anything())
-    })
-  
-    it('should not delete git tag if deployment plugin succeeds', async() => {
-      mockPlugin.publish = jest.fn().mockImplementation((config, context) => {
-        return Promise.resolve()
-      })
-  
-      await runFullPluginLifecycle(defaultPluginConfig(), defaultContext())
-  
-      expect(git.deleteTag).not.toBeCalled()
-    })
-  
-    it('should delete git tag if deployment check after publish says that deployment didnt succeed', async() => {
-      mockPlugin.publish = jest.fn().mockImplementation((config, context) => {
-        return Promise.resolve()
-      })    
-      jest.spyOn(isItDeployed, 'isItDeployed').mockImplementation(() => { 
-        return Promise.resolve(false) // always return false to simulate deployment never succeeding 
-      })
-      let config = defaultPluginConfig()
-      config.check_if_deployed_after_publish = true
-      config.is_it_deployed = { // to make isItDeployedMock run 
-        package_name: 'react', 
-        package_manager: 'npm' 
-      }
-  
-      await expect(runFullPluginLifecycle(config, defaultContext())).rejects.toThrowError()
-  
-      expect(git.deleteTag).toBeCalledWith('v1.0.0', expect.anything())
-    })
-  
-    it('should not delete git tag if deployment check after publish says that deployment succeeded', async() => {
-      mockPlugin.publish = jest.fn().mockImplementation((config, context) => {
-        return Promise.resolve()
-      })
-      const isItDeployedReturnValues = [false, true]
-      jest.spyOn(isItDeployed, 'isItDeployed').mockImplementation(() => { 
-        return Promise.resolve(isItDeployedReturnValues.shift()!)
-      })
-      let config = defaultPluginConfig()
-      config.check_if_deployed_after_publish = true
-      config.is_it_deployed = { // to make isItDeployedMock run 
-        package_name: 'react', 
-        package_manager: 'npm' 
-      }
-  
-      await runFullPluginLifecycle(config, defaultContext())
-  
-      expect(git.deleteTag).not.toBeCalled()
     })
   })
 
