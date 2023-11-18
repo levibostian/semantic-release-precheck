@@ -83,11 +83,12 @@ export async function prepare(_: any, context: PrepareContext) {
 export async function publish(_: any, context: PublishContext) {     
   const isPublished = await steps.isAlreadyDeployed(context, state)
   state.skipDeployment = isPublished
-
+  
   if (state.skipDeployment) {
-    context.logger.log(`Will skip publish and future plugin functions for deploy plugin because version ${context.nextRelease.version} is already deployed.`)      
-    context.logger.log(`Skipping publish for deploy plugin ${state.pluginConfig.deploy_plugin.name} because publish was skipped.`)
+    context.logger.log(`The plugin: ${state.pluginConfig.deploy_plugin.name} will be skipped for version ${context.nextRelease.version}.`)
     return 
+  } else {
+    context.logger.log(`The plugin: ${state.pluginConfig.deploy_plugin.name} will continue to run as normal.`)
   }
 
   if (state.deploymentPlugin.publish) {

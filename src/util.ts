@@ -41,7 +41,7 @@ export async function isAlreadyDeployed(context: PublishContext, state: State): 
     const version = context.nextRelease.version
     const packageManager = state.pluginConfig.is_it_deployed.package_manager
 
-    context.logger.log(`Checking if version ${version} of package ${packageName} is already deployed to ${packageManager}.`)
+    context.logger.log(`Checking if version ${version} of package ${packageName} is already deployed to ${packageManager}...`)
 
     const isItDeployedCheck = await isItDeployed.isItDeployed({ 
       packageManager: packageManager as any, // cast to any because this wants an enum string, but we just have a string. let is-it-deployed throw an error during deployment if the package manager is invalid.
@@ -49,21 +49,28 @@ export async function isAlreadyDeployed(context: PublishContext, state: State): 
       packageVersion: version
     })
 
-    if (isItDeployedCheck) return true 
+    if (isItDeployedCheck) {      
+      context.logger.log(`Version ${version} of package ${packageName} has already been deployed on ${packageManager}.`)
+      return true 
+    } else {      
+      context.logger.log(`Version ${version} of package ${packageName} has not been deployed on ${packageManager}.`)
+    }    
   }     
   
   if (state.pluginConfig.should_skip_cmd) {
     // Using same logic as https://github.com/semantic-release/exec/blob/master/lib/exec.js to do string formatting so the syntax is similar for both plugins. 
     const preCheckCommand = stringFormat(state.pluginConfig.should_skip_cmd)(context)  
-
-    context.logger.log(`Will run precheck command: '${preCheckCommand}' - If command returns true (0 exit code), the deployment will be skipped.`)
       
     try {
-      context.logger.log(`Running command. Output of command will be displayed below....`)
-      await runCommand(preCheckCommand, prepareLoggerForDeploymentPlugin(context, state))            
+      context.logger.log(`Running command: '${preCheckCommand}'... (Output of command will be displayed below)`)
+      await runCommand(preCheckCommand, prepareLoggerForDeploymentPlugin(context, state)) // output of command will be displayed by the runCommand function.
+      
+      context.logger.log(`Command was successful (return exit code 0).`)
 
-      return true  // exit 0 is is it deployed         
-    } catch (e) {}
+      return true  
+    } catch (e) {
+      context.logger.log(`Command was not successful (did not return exit code 0).`)
+    }
   } 
 
   return false // the default return result 
