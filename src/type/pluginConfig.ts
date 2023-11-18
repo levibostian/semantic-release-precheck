@@ -11,7 +11,6 @@ export interface PluginConfig {
   }  
 }
 
-// returns a string (error message) if invalid. 
 export function parse(config: any): PluginConfig | Error {
   let returnResult: any = {}
 

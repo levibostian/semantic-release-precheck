@@ -13,9 +13,11 @@
             "preset": "conventionalcommits"
         }],
         ["semantic-release-precheck", {
-            "package_manager": "npm",
-            "packages": ["semantic-release-precheck"],
-            "publish_plugin": "@semantic-release/npm"
+            "is_it_deployed": {
+                "package_manager": "npm",
+                "package_name": "semantic-release-precheck"
+            },
+            "deploy_plugin": "@semantic-release/npm"
         }],
         "@semantic-release/github"
     ]

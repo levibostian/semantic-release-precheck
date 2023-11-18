@@ -1,6 +1,6 @@
 # semantic-release-precheck
 
-[semantic-release](https://github.com/semantic-release/semantic-release) plugin that skips publishing if that version was published previously. Great plugin to verify that a package was successfully pushed to a package manager or as a way to retry deploying. 
+[semantic-release](https://github.com/semantic-release/semantic-release) plugin that skips publishing if version deployed has already been deployed. Great plugin to assert that a deployment was successful. Or, allowing you to [retry a previously failed deployment](#why-is-this-plugin-needed). 
 
 # Getting started 
 
@@ -16,7 +16,7 @@ Let's use an example of deploying a node module to npmjs:
         ["semantic-release-precheck", {
             "is_it_deployed": {
                 "package_manager": "npm",
-                "package": "name-of-package",
+                "package_name": "name-of-package",
             },
             "deploy_plugin":
                 ["@semantic-release/npm", {
@@ -42,15 +42,15 @@ Let's break this configuration down.
 
 # Why is this plugin needed? 
 
-A deployment processes can involve multiple steps. This means there are multiple places where a deployment failure can occur. It is ideal that after a deployment failure, you can simply retry the deployment again. This *should* work, but many services that you may deploy code to (npmjs, Maven Central, Cocoapods) do not allow uploading the same version to them multiple times. This could result in this scenario (that has happened to me many times): 
+A deployment processes can involve multiple steps. This means there are multiple places where a deployment failure can occur. It would be ideal if you could simply retry running semantic-release after it fails. This *should* work, but many services that you may deploy code to (npmjs, Maven Central, Cocoapods) do not allow uploading the same version multiple times. If you were to retry running semantic-release after a failed deploy, this scenario could occur for you: 
 
 * semantic-release determines the next version to release of your software is `1.0.1`. 
 * Using `@semantic-release/npm`, `1.0.1` is successfully uploaded to npm. 
-* Oh, no! A step later on in the deployment process failed (pushing a git tag may fail, for example). Your deployment process has failed. 
-* You fix permissions to allow a git tag to be pushed successfully this time. You retry making the `1.0.1` deployment to make it successful this time. 
-* When `@semantic-release/npm` attempts to push `1.0.1`, it will fail because npm notices that `1.0.1` has been deployed before. You're deployment process is now stuck where it may never succeed because we cannot get past `@semantic-release/npm` succeeding anymore. 
+* Oh, no! A step later on in the deployment process failed. semantic-release exits early. 
+* You fix the problem. Then, retry running semantic-release to successfully finish the `1.0.1` deployment that failed previously. 
+* During this retry, when `@semantic-release/npm` attempts to push version `1.0.1`, it fails because npm's server rejects uploading `1.0.1` again. You're deployment process is now stuck in an infinite loop because we cannot get past the `@semantic-release/npm` step. 
 
-That is where this plugin comes in. By checking if a version already exists, we skip a new deployment attempt which allows the remainder of your deployment workflow to continue. Ultimately, getting the retried deployment to a successful state. 
+That is where this plugin comes in. By checking if a version already exists, we can skip steps that do not need to run which allows the remainder of your semantic-release steps to continue. Ultimately, getting the retried deployment to a successful state! 
 
 > Tip: Another great plugin to consider to make deployment retries easy is [`semantic-release-recovery`](https://github.com/levibostian/semantic-release-recovery). 
 
