@@ -13,6 +13,12 @@ describe('parse', () => {
   })
 
   describe('deploy_plugin', () => { 
+    test('should return error if deploy_plugin does not exist in config', () => {
+      const config = {        
+      };
+      expect(parse(config)).toBeInstanceOf(Error);
+    });
+
     test('should return error if deploy_plugin is not configured correctly', () => {
       const config = {
         deploy_plugin: ['some_plugin'],
@@ -24,14 +30,26 @@ describe('parse', () => {
       const config = {
         deploy_plugin: 'some_plugin',
       };
-      expect(parse(config)).toBeInstanceOf(Object);
+      expect(parse(config)).toEqual({
+        deploy_plugin: {
+          name: 'some_plugin',
+          config: {},
+        },
+        check_after_publish: true,
+      });
     })
 
     test('should accept deploy_plugin as array', () => {
       const config = {
-        deploy_plugin: ['some_plugin', {}],
+        deploy_plugin: ['some_plugin', {foo: 'bar'}],
       };
-      expect(parse(config)).toBeInstanceOf(Object);
+      expect(parse(config)).toEqual({
+        deploy_plugin: {
+          name: 'some_plugin',
+          config: {foo: 'bar'},
+        },
+        check_after_publish: true,
+      })
     })
   })
   
@@ -42,8 +60,8 @@ describe('parse', () => {
         package_name: 'my-package',
       },
       deploy_plugin: ['plugin_name', { configKey: 'configValue' }],
-      should_skip_cmd: true,
-      check_if_deployed_after_publish: false,
+      should_skip_cmd: 'true',
+      check_after_publish: false,
     };
 
     const expectedOutput = {
@@ -51,8 +69,8 @@ describe('parse', () => {
         package_name: 'my-package',
         package_manager: 'npm',
       },
-      should_skip_cmd: true,
-      check_if_deployed_after_publish: false,
+      should_skip_cmd: 'true',
+      check_after_publish: false,
       deploy_plugin: {
         name: 'plugin_name',
         config: { configKey: 'configValue' },
@@ -76,8 +94,7 @@ describe('parse', () => {
         package_name: 'my-package',
         package_manager: 'npm',
       },
-      should_skip_cmd: undefined,
-      check_if_deployed_after_publish: false,
+      check_after_publish: true,
       deploy_plugin: {
         name: 'plugin_name',
         config: { configKey: 'configValue' },
@@ -85,5 +102,5 @@ describe('parse', () => {
     };
 
     expect(parse(config)).toEqual(expectedOutput);
-  }
+  })
 });
