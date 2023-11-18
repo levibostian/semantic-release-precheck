@@ -289,12 +289,14 @@ describe('logging', () => {
 ",
   "[semantic-release] › L  Running prepare for deployment plugin: @semantic-release/npm
 ",
-  "[semantic-release] › L  Will run precheck command: 'echo "run a deploy!" && false' - If command returns true (0 exit code), the deployment will be skipped.
-",
-  "[semantic-release] › L  Running command. Output of command will be displayed below....
+  "[semantic-release] › L  Running command: 'echo "run a deploy!" && false'... (Output of command will be displayed below)
 ",
   "[semantic-release] [@semantic-release/npm] › L  run a deploy!
 
+",
+  "[semantic-release] › L  Command was not successful (did not return exit code 0).
+",
+  "[semantic-release] › L  The plugin: @semantic-release/npm will continue to run as normal.
 ",
   "[semantic-release] › L  Running publish for deployment plugin: @semantic-release/npm
 ",
@@ -338,6 +340,8 @@ describe('logging', () => {
 ",
   "[semantic-release] › L  Running prepare for deployment plugin: @semantic-release/npm
 ",
+  "[semantic-release] › L  The plugin: @semantic-release/npm will continue to run as normal.
+",
   "[semantic-release] › L  Running publish for deployment plugin: @semantic-release/npm
 ",
 ]
@@ -365,16 +369,14 @@ describe('logging', () => {
 ",
   "[semantic-release] › L  Running prepare for deployment plugin: @semantic-release/npm
 ",
-  "[semantic-release] › L  Will run precheck command: 'echo "skip a deploy" && true' - If command returns true (0 exit code), the deployment will be skipped.
-",
-  "[semantic-release] › L  Running command. Output of command will be displayed below....
+  "[semantic-release] › L  Running command: 'echo "skip a deploy" && true'... (Output of command will be displayed below)
 ",
   "[semantic-release] [@semantic-release/npm] › L  skip a deploy
 
 ",
-  "[semantic-release] › L  Will skip publish and future plugin functions for deploy plugin because version 1.0.0 is already deployed.
+  "[semantic-release] › L  Command was successful (return exit code 0).
 ",
-  "[semantic-release] › L  Skipping publish for deploy plugin @semantic-release/npm because publish was skipped.
+  "[semantic-release] › L  The plugin: @semantic-release/npm will be skipped for version 1.0.0.
 ",
   "[semantic-release] › L  Skipping addChannel for deploy plugin @semantic-release/npm because publish was skipped.
 ",
