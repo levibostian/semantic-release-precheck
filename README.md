@@ -1,6 +1,6 @@
 # semantic-release-precheck
 
-[semantic-release](https://github.com/semantic-release/semantic-release) plugin to try and create a more stable `semantic-release` deployment process. This is done by (1) confirming with package managers that the deployment actually succeeded as expected and (2) if a deployment fails, it allows you to retry. 
+[semantic-release](https://github.com/semantic-release/semantic-release) plugin that skips publishing if version deployed has already been deployed. Great plugin to assert that a deployment was successful. Or, allowing you to [retry a previously failed deployment](#why-is-this-plugin-needed). 
 
 # Getting started 
 
@@ -12,25 +12,16 @@ Let's use an example of deploying a node module to npmjs:
 
 ```json
 {
-    "tagFormat": "${version}",
-    "branches": [
-        "main"
-    ],
     "plugins": [
-        "@semantic-release/commit-analyzer",
-        "@semantic-release/release-notes-generator",
         ["semantic-release-precheck", {
             "is_it_deployed": {
                 "package_manager": "npm",
-                "package_name": "name-of-package"
+                "package_name": "name-of-package",
             },
-            "check_if_deployed_after_publish": true,
-            "deploy_plugin": {
-                "name": "@semantic-release/npm",
-                "config": {
+            "deploy_plugin":
+                ["@semantic-release/npm", {
                     "pkgRoot": "dist/"
-                }
-            }             
+                }]
         }]
     ]
 }
@@ -38,60 +29,28 @@ Let's use an example of deploying a node module to npmjs:
 
 Let's break this configuration down. 
 
-* `is_it_deployed` uses the `package_manager` and `package_name` to determine if the version has already been deployed. This internally uses the [is-it-deployed](https://github.com/levibostian/is-it-deployed/) module. Check if [your package manager](https://github.com/levibostian/is-it-deployed/?tab=readme-ov-file#supported-package-managers) is currently supported by the module and see examples for what values to use for it. 
+### Options
 
-If `is_it_deployed` will not work for you and your deployment process, you can use `should_skip_deployment_cmd` instead.
+| Options      | Description                | Default      |
+| ------------ | -------------------------- | ------------ |
+| `is_it_deployed` | Uses the tool [is-it-deployed](https://github.com/levibostian/is-it-deployed/) to check if that version of the package has been deployed already. Check if [your package manager](https://github.com/levibostian/is-it-deployed/?tab=readme-ov-file#supported-package-managers) is currently supported by the module and see examples for what values to use for it. If not, use `should_skip_cmd`. | null |
+| `should_skip_cmd` | A bash command to execute. If command runs successfully (exit code 0), then `publish` step of `deploy_plugin` will be skipped. | null |
+| `check_after_publish` | After `deploy_plugin` `publish` step gets executed, run  will run `is_it_deployed` and `should_skip_cmd` again. Enable this feature if you want to be extra confident that the deployment was successful to the server. | `true` |
+| `deploy_plugin` | Defines an existing sematic-release plugin that you want `precheck` to execute for you. It's suggested that if you configure `is_it_deployed` to `package_manager = npm`, for example, then the `deploy_plugin` should deploy a npm module to a npm server. | null | 
 
-* `should_skip_deployment_cmd` (not needed if using `is_it_deployed`) is a command that executes to check if the version has already been deployed. If command returns true (0 exit code), this indicates that the version has previously been deployed and a new deployment should be skipped. 
-
-Example: 
-```json
-{    
-    "plugins": [
-        ["semantic-release-precheck", {
-            "should_skip_deployment_cmd": "npm view name-of-project@${nextRelease.version}",
-            ...
-        }]
-    ]
-}
-```
-
-* `check_if_deployed_after_publish` will run `is_it_deployed` or `should_skip_deployment_cmd` again after running the `deploy_plugin`. Enable this feature if you want to be extra confident that the deployment was successful to the server. 
-
-* `deploy_plugin` is used to define an existing sematic-release plugin that should be used to perform the deployment, if a deployment is to occur. This allows you to conveniently re-use existing plugins in the semantic-release community. 
-
-It's important that whatever plugin that you use for deployment gets moved out of the `plugins` array and instead goes inside of `semantic-release-precheck` object. As an example, **this is an invalid configuration:**
-
-```json
-{
-    "plugins": [
-        "@semantic-release/npm",
-        ["semantic-release-precheck", {
-            "deploy_plugin": {
-                "name": "@semantic-release/npm"
-            }
-        }]
-    ]
-}
-```
-
-It's invalid because `@semantic-release/npm` exists *both* inside of `semantic-release-precheck` and outside of it. 
-
-*Note:* You must have the deployment plugin installed with npm before running your deployment. 
-
-There is an `config` object inside of `deploy_plugin`. This object will be provided to the `deploy_plugin` during execution. This means that any option that the `deploy_plugin` supports can go into this object. 
+> *Reminder:* Install the deploy plugin before running semantic-release. 
 
 # Why is this plugin needed? 
 
-A deployment processes can involve multiple steps. This means there are multiple places where a deployment failure can occur. It is ideal that after a deployment failure, you can simply retry the deployment again. This *should* work, but many services that you may deploy code to (npmjs, Maven Central, Cocoapods) do not allow uploading the same version to them multiple times. This could result in this scenario (that has happened to me many times): 
+A deployment processes can involve multiple steps. This means there are multiple places where a deployment failure can occur. It would be ideal if you could simply retry running semantic-release after it fails. This *should* work, but many services that you may deploy code to (npmjs, Maven Central, Cocoapods) do not allow uploading the same version multiple times. If you were to retry running semantic-release after a failed deploy, this scenario could occur for you: 
 
 * semantic-release determines the next version to release of your software is `1.0.1`. 
 * Using `@semantic-release/npm`, `1.0.1` is successfully uploaded to npm. 
-* Oh, no! A step later on in the deployment process failed (pushing a git tag may fail, for example). Your deployment process has failed. 
-* You fix permissions to allow a git tag to be pushed successfully this time. You retry making the `1.0.1` deployment to make it successful this time. 
-* When `@semantic-release/npm` attempts to push `1.0.1`, it will fail because npm notices that `1.0.1` has been deployed before. You're deployment process is now stuck where it may never succeed because we cannot get past `@semantic-release/npm` succeeding anymore. 
+* Oh, no! A step later on in the deployment process failed. semantic-release exits early. 
+* You fix the problem. Then, retry running semantic-release to successfully finish the `1.0.1` deployment that failed previously. 
+* During this retry, when `@semantic-release/npm` attempts to push version `1.0.1`, it fails because npm's server rejects uploading `1.0.1` again. You're deployment process is now stuck in an infinite loop because we cannot get past the `@semantic-release/npm` step. 
 
-That is where this plugin comes in. By checking if a version already exists, we skip a new deployment attempt which allows the remainder of your deployment workflow to continue. Ultimately, getting the retried deployment to a successful state. 
+That is where this plugin comes in. By checking if a version already exists, we can skip steps that do not need to run which allows the remainder of your semantic-release steps to continue. Ultimately, getting the retried deployment to a successful state! 
 
 > Tip: Another great plugin to consider to make deployment retries easy is [`semantic-release-recovery`](https://github.com/levibostian/semantic-release-recovery). 
 

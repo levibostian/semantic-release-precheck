@@ -13,17 +13,12 @@
             "preset": "conventionalcommits"
         }],
         ["semantic-release-precheck", {
-            "should_skip_deployment_cmd": "npm view semantic-release-precheck@${nextRelease.version}",
-            "deploy_plugin": {
-                "name": "@semantic-release/npm",
-                "config": {
-                    "npmPublish": true,
-                    "pkgRoot": ".",
-                    "tarballDir": "false"
-                }
-            } 
+            "is_it_deployed": {
+                "package_manager": "npm",
+                "package_name": "semantic-release-precheck"
+            },
+            "deploy_plugin": "@semantic-release/npm"
         }],
-        "@semantic-release/github",
-        "semantic-release-recovery"
+        "@semantic-release/github"
     ]
 }
