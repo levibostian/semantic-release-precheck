@@ -213,6 +213,7 @@ describe('publish', () => {
       await expect(publish({}, defaultContext())).resolves.not.toThrow()
 
       expect(steps.isAlreadyDeployed).toHaveBeenCalledTimes(2)
+      expect((steps.isAlreadyDeployed as jest.Mock).mock.calls[1][2]).toEqual({ shouldRetryCheck: true })
     })
 
     it('should throw error if check after publish fails', async() => {
@@ -224,7 +225,8 @@ describe('publish', () => {
       await expect(publish({}, defaultContext())).rejects.toThrow()
 
       expect(steps.isAlreadyDeployed).toHaveBeenCalledTimes(2)
-    })    
+      expect((steps.isAlreadyDeployed as jest.Mock).mock.calls[1][2]).toEqual({ shouldRetryCheck: true })
+    })
   })
 })
 

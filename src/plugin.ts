@@ -97,7 +97,8 @@ export async function publish(_: any, context: PublishContext) {
   } 
   
   if (state.pluginConfig.check_after_publish) {
-    const didPublishSuccessfully = await steps.isAlreadyDeployed(context, state)
+    // enable check retry to avoid false positives. Because we just published, the server might need a minute to update. 
+    const didPublishSuccessfully = await steps.isAlreadyDeployed(context, state, { shouldRetryCheck: true })
 
     if (!didPublishSuccessfully) {      
       // throw error so that semantic-release knows to stop execution.

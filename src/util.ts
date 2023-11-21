@@ -35,7 +35,9 @@ export function prepareLoggerForDeploymentPlugin<CONTEXT>(context: BaseContext, 
   return modifiedContext as CONTEXT
 }
 
-export async function isAlreadyDeployed(context: PublishContext, state: State): Promise<boolean> {
+export async function isAlreadyDeployed(context: PublishContext, state: State, opts: { shouldRetryCheck?: boolean } = {}): Promise<boolean> {
+  const { shouldRetryCheck = false } = opts;
+
   if (state.pluginConfig.is_it_deployed) {
     const packageName = state.pluginConfig.is_it_deployed.package_name
     const version = context.nextRelease.version
@@ -47,7 +49,7 @@ export async function isAlreadyDeployed(context: PublishContext, state: State): 
       packageManager: packageManager as any, // cast to any because this wants an enum string, but we just have a string. let is-it-deployed throw an error during deployment if the package manager is invalid.
       packageName: packageName, 
       packageVersion: version
-    })
+    }, { maxRetries: shouldRetryCheck ? 12 : 0 }) // 12 retries is 1 minute because of default 5 second delay between retries.
 
     if (isItDeployedCheck) {      
       context.logger.log(`Version ${version} of package ${packageName} has already been deployed on ${packageManager}.`)
